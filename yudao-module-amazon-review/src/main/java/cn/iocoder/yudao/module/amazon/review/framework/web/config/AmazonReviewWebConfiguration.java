@@ -1,0 +1,24 @@
+package cn.iocoder.yudao.module.amazon.review.framework.web.config;
+
+import cn.iocoder.yudao.framework.swagger.config.YudaoSwaggerAutoConfiguration;
+import org.springdoc.core.GroupedOpenApi;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * Amazon Review module web configuration.
+ *
+ * @author AmazonOps AI
+ */
+@Configuration(proxyBeanMethods = false)
+public class AmazonReviewWebConfiguration {
+
+    /**
+     * Amazon Review module API group.
+     */
+    @Bean
+    public GroupedOpenApi amazonReviewGroupedOpenApi() {
+        return YudaoSwaggerAutoConfiguration.buildGroupedOpenApi("amazon-review");
+    }
+
+}

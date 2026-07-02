@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>cn.iocoder.boot</groupId>
+        <artifactId>yudao</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>yudao-module-amazon-ai</artifactId>
+    <packaging>pom</packaging>
+
+    <name>${project.artifactId}</name>
+    <description>
+        Amazon AI - AI-powered features for Amazon seller operations.
+        Includes core AI infrastructure, listing generation, review analysis,
+        product selection analysis, ad optimization, inventory forecasting,
+        and chat assistant agent with Function Calling.
+    </description>
+
+    <modules>
+        <module>amazon-ai-core</module>
+        <module>amazon-ai-listing</module>
+        <module>amazon-ai-review</module>
+        <module>amazon-ai-research</module>
+        <module>amazon-ai-ad</module>
+        <module>amazon-ai-inventory</module>
+        <module>amazon-ai-agent</module>
+    </modules>
+
+</project>

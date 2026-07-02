@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>cn.iocoder.boot</groupId>
+        <artifactId>yudao-module-amazon-common</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>amazon-common-sync</artifactId>
+    <packaging>jar</packaging>
+
+    <name>${project.artifactId}</name>
+    <description>
+        Sync framework for Amazon data synchronization: base Job classes,
+        message queue configuration, sync task scheduling, and delta sync support.
+    </description>
+
+    <dependencies>
+        <!-- Amazon Common Core -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>amazon-common-core</artifactId>
+            <version>${revision}</version>
+        </dependency>
+
+        <!-- Amazon Common Model -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>amazon-common-model</artifactId>
+            <version>${revision}</version>
+        </dependency>
+
+        <!-- Amazon Shop (AbstractAmazonSyncJob imports AmazonShopDO + AmazonShopService) -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-module-amazon-shop</artifactId>
+            <version>${revision}</version>
+        </dependency>
+
+        <!-- Yudao Job for scheduling -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-spring-boot-starter-job</artifactId>
+        </dependency>
+
+        <!-- Yudao MQ for message queue -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-spring-boot-starter-mq</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>
