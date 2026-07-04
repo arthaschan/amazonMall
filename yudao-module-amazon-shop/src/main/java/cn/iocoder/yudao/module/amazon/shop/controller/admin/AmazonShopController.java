@@ -12,8 +12,8 @@ import cn.iocoder.yudao.module.amazon.shop.service.AmazonShopService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
-import jakarta.validation.Valid;
+import javax.annotation.Resource;
+import javax.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -74,7 +74,7 @@ public class AmazonShopController {
         // Set credentialConfigured flag
         if (respVO != null && shop != null) {
             respVO.setCredentialConfigured(
-                    shop.getRefreshToken() != null && !shop.getRefreshToken().isBlank());
+                    shop.getRefreshToken() != null && !shop.getRefreshToken().trim().isEmpty());
         }
         return success(respVO);
     }

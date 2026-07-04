@@ -6,7 +6,7 @@ import cn.iocoder.yudao.module.amazon.shop.dal.dataobject.AmazonShopDO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 
 /**
  * 广告报告同步 Job

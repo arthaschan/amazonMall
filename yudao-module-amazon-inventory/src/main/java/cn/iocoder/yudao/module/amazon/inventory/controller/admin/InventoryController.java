@@ -8,8 +8,8 @@ import cn.iocoder.yudao.module.amazon.inventory.controller.admin.vo.InventoryRes
 import cn.iocoder.yudao.module.amazon.inventory.service.InventoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
-import jakarta.validation.Valid;
+import javax.annotation.Resource;
+import javax.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -29,7 +29,7 @@ public class InventoryController {
     @Operation(summary = "库存分页列表")
     @PreAuthorize("@ss.hasPermission('amazon:inventory:query')")
     public CommonResult<PageResult<InventoryRespVO>> getInventoryPage(@Valid InventoryPageReqVO reqVO) {
-        var page = inventoryService.getInventoryPage(reqVO);
+        PageResult<AmazonInventoryDO> page = inventoryService.getInventoryPage(reqVO);
         return success(BeanUtils.toBean(page, InventoryRespVO.class));
     }
 

@@ -3,12 +3,11 @@ package cn.iocoder.yudao.module.amazon.ad.service;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.amazon.ad.dal.dataobject.AmazonAdReportDailyDO;
 import cn.iocoder.yudao.module.amazon.ad.dal.dataobject.AmazonAdRuleDO;
-import cn.iocoder.yudao.module.amazon.ad.dal.mysql.AmazonAdCampaignMapper;
 import cn.iocoder.yudao.module.amazon.ad.dal.mysql.AmazonAdReportDailyMapper;
 import cn.iocoder.yudao.module.amazon.ad.dal.mysql.AmazonAdRuleMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -36,9 +35,6 @@ public class AdRuleEngine {
 
     @Resource
     private AmazonAdReportDailyMapper reportDailyMapper;
-
-    @Resource
-    private AmazonAdCampaignMapper campaignMapper;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 

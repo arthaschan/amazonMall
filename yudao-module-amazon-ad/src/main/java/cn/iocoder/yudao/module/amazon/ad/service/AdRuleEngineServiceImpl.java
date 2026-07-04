@@ -6,8 +6,10 @@ import cn.iocoder.yudao.module.amazon.ad.controller.admin.vo.AdRulePageReqVO;
 import cn.iocoder.yudao.module.amazon.ad.controller.admin.vo.AdRuleSaveReqVO;
 import cn.iocoder.yudao.module.amazon.ad.dal.dataobject.AmazonAdRuleDO;
 import cn.iocoder.yudao.module.amazon.ad.dal.mysql.AmazonAdRuleMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 public class AdRuleEngineServiceImpl implements AdRuleEngineService {
@@ -15,9 +17,12 @@ public class AdRuleEngineServiceImpl implements AdRuleEngineService {
     @Resource
     private AmazonAdRuleMapper ruleMapper;
 
+    @Resource
+    private AdRuleEngine adRuleEngine;
+
     @Override
     public Long createRule(AdRuleSaveReqVO reqVO) {
-        var rule = BeanUtils.toBean(reqVO, AmazonAdRuleDO.class);
+        AmazonAdRuleDO rule = BeanUtils.toBean(reqVO, AmazonAdRuleDO.class);
         rule.setStatus(1);
         ruleMapper.insert(rule);
         return rule.getId();
@@ -45,11 +50,7 @@ public class AdRuleEngineServiceImpl implements AdRuleEngineService {
 
     @Override
     public void executeRules(Long shopId) {
-        var rules = ruleMapper.selectActiveRules(shopId);
-        for (var rule : rules) {
-            // TODO: 解析条件 JSON，评估并执行动作
-            rule.setLastExecutedAt(java.time.LocalDateTime.now());
-            ruleMapper.updateById(rule);
-        }
+        // 委托给 AdRuleEngine 执行完整的规则评估逻辑
+        adRuleEngine.executeAllEnabledRules();
     }
 }

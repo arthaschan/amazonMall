@@ -4,7 +4,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.amazon.order.controller.admin.vo.FbaShipmentPageReqVO;
 import cn.iocoder.yudao.module.amazon.order.dal.dataobject.AmazonFbaShipmentDO;
 import cn.iocoder.yudao.module.amazon.order.dal.mysql.AmazonFbaShipmentMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 @Service

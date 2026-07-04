@@ -4,7 +4,7 @@ import cn.iocoder.yudao.module.amazon.listing.dal.dataobject.AmazonListingVersio
 import cn.iocoder.yudao.module.amazon.listing.dal.dataobject.AmazonProductDO;
 import cn.iocoder.yudao.module.amazon.listing.dal.mysql.AmazonListingVersionMapper;
 import cn.iocoder.yudao.module.amazon.listing.dal.mysql.AmazonProductMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -35,13 +35,13 @@ public class ListingVersionServiceImpl implements ListingVersionService {
 
     @Override
     public void rollback(Long productId, Integer versionNum) {
-        var versions = versionMapper.selectByProductId(productId);
-        var target = versions.stream()
+        List<AmazonListingVersionDO> versions = versionMapper.selectByProductId(productId);
+        java.util.Optional<AmazonListingVersionDO> target = versions.stream();
                 .filter(v -> v.getVersionNum().equals(versionNum))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Version not found: " + versionNum));
 
-        var product = new AmazonProductDO();
+        AmazonProductDO product = new AmazonProductDO();
         product.setId(productId);
         product.setTitle(target.getTitle());
         product.setBulletPoints(target.getBulletPoints());

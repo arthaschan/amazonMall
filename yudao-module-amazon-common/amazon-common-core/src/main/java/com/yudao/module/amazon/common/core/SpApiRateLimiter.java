@@ -7,6 +7,8 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,41 +57,40 @@ public class SpApiRateLimiter {
      * <p>Args: [1] = burstCapacity, [2] = restoreRate, [3] = now (epoch millis), [4] = tokensToConsume
      * <p>Returns: 0 = allowed, 1 = denied (with waitMs in the second element)
      */
-    private static final String LUA_TOKEN_BUCKET = """
-            local key = KEYS[1]
-            local burstCapacity = tonumber(ARGV[1])
-            local restoreRate = tonumber(ARGV[2])
-            local now = tonumber(ARGV[3])
-            local requested = tonumber(ARGV[4])
-
-            local bucket = redis.call('HMGET', key, 'tokens', 'lastRefill')
-            local tokens = tonumber(bucket[1])
-            local lastRefill = tonumber(bucket[2])
-
-            if tokens == nil then
-                -- First call: bucket starts full
-                tokens = burstCapacity
-                lastRefill = now
-            end
-
-            -- Refill tokens based on elapsed time
-            local elapsed = (now - lastRefill) / 1000.0
-            tokens = math.min(burstCapacity, tokens + elapsed * restoreRate)
-
-            if tokens >= requested then
-                -- Consume and allow
-                tokens = tokens - requested
-                redis.call('HMSET', key, 'tokens', tokens, 'lastRefill', now)
-                redis.call('EXPIRE', key, 7200)
-                return {0, 0}
-            else
-                -- Denied: compute wait time
-                local deficit = requested - tokens
-                local waitMs = math.ceil(deficit / restoreRate * 1000)
-                redis.call('EXPIRE', key, 7200)
-                return {1, waitMs}
-            end
-            """;
+    private static final String LUA_TOKEN_BUCKET =
+            "local key = KEYS[1]\n"
+            + "local burstCapacity = tonumber(ARGV[1])\n"
+            + "local restoreRate = tonumber(ARGV[2])\n"
+            + "local now = tonumber(ARGV[3])\n"
+            + "local requested = tonumber(ARGV[4])\n"
+            + "\n"
+            + "local bucket = redis.call('HMGET', key, 'tokens', 'lastRefill')\n"
+            + "local tokens = tonumber(bucket[1])\n"
+            + "local lastRefill = tonumber(bucket[2])\n"
+            + "\n"
+            + "if tokens == nil then\n"
+            + "    -- First call: bucket starts full\n"
+            + "    tokens = burstCapacity\n"
+            + "    lastRefill = now\n"
+            + "end\n"
+            + "\n"
+            + "-- Refill tokens based on elapsed time\n"
+            + "local elapsed = (now - lastRefill) / 1000.0\n"
+            + "tokens = math.min(burstCapacity, tokens + elapsed * restoreRate)\n"
+            + "\n"
+            + "if tokens >= requested then\n"
+            + "    -- Consume and allow\n"
+            + "    tokens = tokens - requested\n"
+            + "    redis.call('HMSET', key, 'tokens', tokens, 'lastRefill', now)\n"
+            + "    redis.call('EXPIRE', key, 7200)\n"
+            + "    return {0, 0}\n"
+            + "else\n"
+            + "    -- Denied: compute wait time\n"
+            + "    local deficit = requested - tokens\n"
+            + "    local waitMs = math.ceil(deficit / restoreRate * 1000)\n"
+            + "    redis.call('EXPIRE', key, 7200)\n"
+            + "    return {1, waitMs}\n"
+            + "end";
 
     private final StringRedisTemplate redisTemplate;
     private final AmazonProperties properties;
@@ -167,10 +168,10 @@ public class SpApiRateLimiter {
         String key = "sp:rate:" + sellerId + ":" + endpoint;
         AmazonProperties.RateLimitConfig config = resolveConfig(endpoint);
 
-        List<Long> keys = List.of(key);
-        List<Object> args = List.of(
-                config.burstCapacity(),
-                config.restoreRatePerSecond(),
+        List<Long> keys = Collections.singletonList(key);
+        List<Object> args = Arrays.asList(
+                config.getBurstCapacity(),
+                config.getRestoreRatePerSecond(),
                 System.currentTimeMillis(),
                 tokens
         );
@@ -211,7 +212,7 @@ public class SpApiRateLimiter {
      * @param headerValue the value of the {@code x-amzn-RateLimit-Limit} header
      */
     public void updateFromResponseHeader(String endpoint, String headerValue) {
-        if (headerValue == null || headerValue.isBlank()) {
+        if (headerValue == null || headerValue.trim().isEmpty()) {
             return;
         }
 
@@ -254,7 +255,7 @@ public class SpApiRateLimiter {
         }
 
         // 3. Try pattern matching on static config (e.g. "/orders/*" matches "/orders/v0/orders")
-        for (var entry : properties.getRateLimits().entrySet()) {
+        for (Map.Entry<String, AmazonProperties.RateLimitConfig> entry : properties.getRateLimits().entrySet()) {
             if (matchesPattern(endpoint, entry.getKey())) {
                 return entry.getValue();
             }

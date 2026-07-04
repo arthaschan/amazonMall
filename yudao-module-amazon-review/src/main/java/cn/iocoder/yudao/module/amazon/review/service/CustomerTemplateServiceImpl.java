@@ -6,7 +6,7 @@ import cn.iocoder.yudao.module.amazon.review.controller.admin.vo.CustomerTemplat
 import cn.iocoder.yudao.module.amazon.review.controller.admin.vo.CustomerTemplateSaveReqVO;
 import cn.iocoder.yudao.module.amazon.review.dal.dataobject.AmazonCustomerTemplateDO;
 import cn.iocoder.yudao.module.amazon.review.dal.mysql.AmazonCustomerTemplateMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -17,7 +17,7 @@ public class CustomerTemplateServiceImpl implements CustomerTemplateService {
 
     @Override
     public Long createTemplate(CustomerTemplateSaveReqVO reqVO) {
-        var template = BeanUtils.toBean(reqVO, AmazonCustomerTemplateDO.class);
+        AmazonCustomerTemplateDO template = BeanUtils.toBean(reqVO, AmazonCustomerTemplateDO.class);
         templateMapper.insert(template);
         return template.getId();
     }

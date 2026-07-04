@@ -2,9 +2,9 @@ package cn.iocoder.yudao.module.amazon.shop.controller.admin.vo;
 
 import cn.iocoder.yudao.module.amazon.shop.enums.AmazonShopStatusEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Size;
 import lombok.Data;
 
 @Schema(description = "Management Console - Amazon Shop Create Request VO")

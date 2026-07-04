@@ -1,14 +1,11 @@
 package com.yudao.module.amazon.common.core;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Sealed exception hierarchy for Amazon SP-API errors.
- *
- * <p>Using sealed classes ensures the compiler knows all possible SP-API
- * failure modes, which makes exhaustive {@code switch} expressions possible
- * in calling code.
+ * Exception hierarchy for Amazon SP-API errors.
  *
  * <p>Subclasses map to specific HTTP status families:
  * <ul>
@@ -18,11 +15,7 @@ import java.util.Map;
  *   <li>{@link SpApiClientException}     &rarr; 4xx (except 401, 429) client errors</li>
  * </ul>
  */
-public sealed class SpApiException extends RuntimeException
-        permits SpApiException.SpApiAuthException,
-                SpApiException.SpApiRateLimitException,
-                SpApiException.SpApiServerException,
-                SpApiException.SpApiClientException {
+public class SpApiException extends RuntimeException {
 
     /** HTTP status code returned by Amazon, or -1 if the request never completed. */
     private final int statusCode;
@@ -52,36 +45,33 @@ public sealed class SpApiException extends RuntimeException
 
     /**
      * Factory that maps an HTTP status code to the correct exception subtype.
-     *
-     * @param statusCode   HTTP status
-     * @param requestId    Amazon request ID (nullable)
-     * @param body         response body (nullable)
-     * @param endpoint     the SP-API endpoint path (for diagnostics)
-     * @return the appropriate {@link SpApiException} subtype
      */
     public static SpApiException fromStatusCode(int statusCode, String requestId,
                                                  String body, String endpoint) {
-        String msg = "SP-API call to [%s] failed with status %d (requestId=%s)"
-                .formatted(endpoint, statusCode, requestId);
+        String msg = String.format("SP-API call to [%s] failed with status %d (requestId=%s)",
+                endpoint, statusCode, requestId);
 
-        return switch (statusCode) {
-            case 401      -> new SpApiAuthException(msg, requestId, body, null);
-            case 429      -> new SpApiRateLimitException(msg, requestId, body, null, -1);
-            case 500, 502,
-                 503, 504 -> new SpApiServerException(msg, statusCode, requestId, body, null);
-            default       -> new SpApiClientException(msg, statusCode, requestId, body, null);
-        };
+        switch (statusCode) {
+            case 401:
+                return new SpApiAuthException(msg, requestId, body, null);
+            case 429:
+                return new SpApiRateLimitException(msg, requestId, body, null, -1);
+            case 500:
+            case 502:
+            case 503:
+            case 504:
+                return new SpApiServerException(msg, statusCode, requestId, body, null);
+            default:
+                return new SpApiClientException(msg, statusCode, requestId, body, null);
+        }
     }
 
     // ── Subclasses ────────────────────────────────────────────────────────
 
     /**
      * 401 Unauthorized -- token expired, revoked, or invalid credentials.
-     *
-     * <p>When this is thrown the caller should invalidate the cached access
-     * token and attempt a refresh via {@link SpApiTokenRefresher}.
      */
-    public static final class SpApiAuthException extends SpApiException {
+    public static class SpApiAuthException extends SpApiException {
 
         public SpApiAuthException(String message, String requestId,
                                   String responseBody, Throwable cause) {
@@ -95,11 +85,8 @@ public sealed class SpApiException extends RuntimeException
 
     /**
      * 429 Too Many Requests -- rate limit exceeded.
-     *
-     * <p>The {@code retryAfterSeconds} field carries the server-suggested
-     * back-off when present (from the {@code Retry-After} header).
      */
-    public static final class SpApiRateLimitException extends SpApiException {
+    public static class SpApiRateLimitException extends SpApiException {
 
         /** Seconds the server suggests waiting before retrying (-1 if unknown). */
         private final long retryAfterSeconds;
@@ -116,10 +103,8 @@ public sealed class SpApiException extends RuntimeException
 
     /**
      * 5xx Server Error -- Amazon-side transient failure.
-     *
-     * <p>Always retryable with exponential backoff.
      */
-    public static final class SpApiServerException extends SpApiException {
+    public static class SpApiServerException extends SpApiException {
 
         public SpApiServerException(String message, int statusCode,
                                     String requestId, String responseBody,
@@ -129,12 +114,9 @@ public sealed class SpApiException extends RuntimeException
     }
 
     /**
-     * 4xx Client Error (excluding 401 and 429) -- malformed request, bad
-     * parameters, insufficient permissions, etc.
-     *
-     * <p>Generally NOT retryable; the caller must fix the request.
+     * 4xx Client Error (excluding 401 and 429) -- malformed request.
      */
-    public static final class SpApiClientException extends SpApiException {
+    public static class SpApiClientException extends SpApiException {
 
         public SpApiClientException(String message, int statusCode,
                                     String requestId, String responseBody,
@@ -146,23 +128,21 @@ public sealed class SpApiException extends RuntimeException
     // ── Diagnostic helpers ────────────────────────────────────────────────
 
     /**
-     * Returns a structured map of diagnostic fields suitable for structured
-     * logging (SLF4J key-value pairs or JSON).
+     * Returns a structured map of diagnostic fields.
      */
     public Map<String, Object> toDiagnosticMap() {
-        return Map.ofEntries(
-                Map.entry("exceptionClass", getClass().getSimpleName()),
-                Map.entry("statusCode",    statusCode),
-                Map.entry("requestId",     requestId != null ? requestId : "N/A"),
-                Map.entry("timestamp",     timestamp.toString()),
-                Map.entry("message",       getMessage())
-        );
+        Map<String, Object> map = new LinkedHashMap<String, Object>();
+        map.put("exceptionClass", getClass().getSimpleName());
+        map.put("statusCode", statusCode);
+        map.put("requestId", requestId != null ? requestId : "N/A");
+        map.put("timestamp", timestamp.toString());
+        map.put("message", getMessage());
+        return map;
     }
 
     @Override
     public String toString() {
-        return "%s{statusCode=%d, requestId='%s', timestamp=%s, message='%s'}"
-                .formatted(getClass().getSimpleName(), statusCode,
-                        requestId, timestamp, getMessage());
+        return String.format("%s{statusCode=%d, requestId='%s', timestamp=%s, message='%s'}",
+                getClass().getSimpleName(), statusCode, requestId, timestamp, getMessage());
     }
 }

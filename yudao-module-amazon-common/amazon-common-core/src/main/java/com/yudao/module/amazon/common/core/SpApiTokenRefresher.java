@@ -1,5 +1,6 @@
 package com.yudao.module.amazon.common.core;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import okhttp3.*;
 import org.slf4j.Logger;
@@ -53,18 +54,29 @@ public class SpApiTokenRefresher {
 
     /**
      * Token response from the LWA token endpoint.
-     *
-     * @param accessToken  the short-lived access token (typically 60-minute TTL)
-     * @param refreshToken the long-lived refresh token (only present in auth-code flow)
-     * @param expiresIn    access token lifetime in seconds
-     * @param tokenType    always "bearer"
      */
-    public record TokenResponse(
-            String accessToken,
-            String refreshToken,
-            int expiresIn,
-            String tokenType
-    ) {
+    public static class TokenResponse {
+        /** the short-lived access token (typically 60-minute TTL) */
+        private final String accessToken;
+        /** the long-lived refresh token (only present in auth-code flow) */
+        private final String refreshToken;
+        /** access token lifetime in seconds */
+        private final int expiresIn;
+        /** always "bearer" */
+        private final String tokenType;
+
+        public TokenResponse(String accessToken, String refreshToken, int expiresIn, String tokenType) {
+            this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+            this.expiresIn = expiresIn;
+            this.tokenType = tokenType;
+        }
+
+        public String getAccessToken() { return accessToken; }
+        public String getRefreshToken() { return refreshToken; }
+        public int getExpiresIn() { return expiresIn; }
+        public String getTokenType() { return tokenType; }
+
         /** Convenience: when does this access token expire? */
         public Instant expiresAt() {
             return Instant.now().plusSeconds(expiresIn);
@@ -74,10 +86,18 @@ public class SpApiTokenRefresher {
     /**
      * Error response from the LWA token endpoint.
      */
-    public record TokenErrorResponse(
-            String error,
-            String errorDescription
-    ) {}
+    public static class TokenErrorResponse {
+        private final String error;
+        private final String errorDescription;
+
+        public TokenErrorResponse(String error, String errorDescription) {
+            this.error = error;
+            this.errorDescription = errorDescription;
+        }
+
+        public String getError() { return error; }
+        public String getErrorDescription() { return errorDescription; }
+    }
 
     // ── Public API ────────────────────────────────────────────────────────
 
@@ -186,34 +206,34 @@ public class SpApiTokenRefresher {
                 // Parse the error response
                 try {
                     TokenErrorResponse error = objectMapper.readValue(body, TokenErrorResponse.class);
-                    log.error("LWA token error [{}]: {} - {}", grantType, error.error(), error.errorDescription());
+                    log.error("LWA token error [{}]: {} - {}", grantType, error.getError(), error.getErrorDescription());
 
-                    if ("invalid_grant".equals(error.error())) {
+                    if ("invalid_grant".equals(error.getError())) {
                         throw new SpApiException.SpApiAuthException(
-                                "Invalid grant: %s".formatted(error.errorDescription()), null);
+                                String.format("Invalid grant: %s", error.getErrorDescription()), null);
                     }
                     throw new SpApiException.SpApiAuthException(
-                            "Token request failed: %s - %s".formatted(error.error(), error.errorDescription()),
+                            String.format("Token request failed: %s - %s", error.getError(), error.getErrorDescription()),
                             null);
                 } catch (SpApiException.SpApiAuthException e) {
                     throw e;
                 } catch (Exception parseError) {
                     throw new SpApiException.SpApiAuthException(
-                            "Token request failed with status %d: %s"
-                                    .formatted(response.code(), body), null);
+                            String.format("Token request failed with status %d: %s",
+                                    response.code(), body), null);
                 }
             }
 
             // Parse successful response
             // The LWA response uses snake_case: access_token, refresh_token, expires_in, token_type
-            var jsonNode = objectMapper.readTree(body);
+            JsonNode jsonNode = objectMapper.readTree(body);
             String accessToken = jsonNode.path("access_token").asText(null);
             String newRefreshToken = jsonNode.has("refresh_token")
                     ? jsonNode.path("refresh_token").asText(null) : null;
             int expiresIn = jsonNode.path("expires_in").asInt(3600);
             String tokenType = jsonNode.path("token_type").asText("bearer");
 
-            if (accessToken == null || accessToken.isBlank()) {
+            if (accessToken == null || accessToken.trim().isEmpty()) {
                 throw new SpApiException.SpApiAuthException(
                         "Empty access_token in LWA response", null);
             }

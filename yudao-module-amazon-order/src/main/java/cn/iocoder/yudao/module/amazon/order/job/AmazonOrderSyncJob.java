@@ -6,7 +6,7 @@ import cn.iocoder.yudao.module.amazon.order.service.OrderSyncService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 
 /**
  * 订单同步 Job

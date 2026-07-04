@@ -11,7 +11,7 @@ import com.yudao.module.amazon.common.core.SpApiClient.SpApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;

@@ -70,7 +70,7 @@ public class AmazonCredentialEncryptor {
     public AmazonCredentialEncryptor(AmazonProperties properties) {
         String keyB64 = properties.getEncryptionKey();
 
-        if (keyB64 == null || keyB64.isBlank()) {
+        if (keyB64 == null || keyB64.trim().isEmpty()) {
             throw new IllegalStateException(
                     """
                     Amazon credential encryption key is not configured.
@@ -83,8 +83,8 @@ public class AmazonCredentialEncryptor {
         byte[] raw = Base64.getDecoder().decode(keyB64);
         if (raw.length != AES_KEY_LENGTH) {
             throw new IllegalStateException(
-                    "AES-256-GCM key must be exactly %d bytes (got %d)"
-                            .formatted(AES_KEY_LENGTH, raw.length));
+                    String.format("AES-256-GCM key must be exactly %d bytes (got %d)",
+                            AES_KEY_LENGTH, raw.length));
         }
 
         this.secretKey = new SecretKeySpec(raw, "AES");
@@ -100,7 +100,7 @@ public class AmazonCredentialEncryptor {
      * @return Base64-encoded ciphertext, or {@code null} if input is null/blank
      */
     public String encrypt(String plaintext) {
-        if (plaintext == null || plaintext.isBlank()) {
+        if (plaintext == null || plaintext.trim().isEmpty()) {
             return null;
         }
 
@@ -134,7 +134,7 @@ public class AmazonCredentialEncryptor {
      * @throws IllegalStateException if decryption fails (wrong key, tampered data, etc.)
      */
     public String decrypt(String encoded) {
-        if (encoded == null || encoded.isBlank()) {
+        if (encoded == null || encoded.trim().isEmpty()) {
             return null;
         }
 
@@ -169,7 +169,7 @@ public class AmazonCredentialEncryptor {
      * @return {@code true} if the value appears to be encrypted
      */
     public boolean looksEncrypted(String value) {
-        if (value == null || value.isBlank()) {
+        if (value == null || value.trim().isEmpty()) {
             return false;
         }
         try {

@@ -2,7 +2,7 @@ package cn.iocoder.yudao.module.amazon.listing.service;
 
 import cn.iocoder.yudao.module.amazon.listing.dal.dataobject.AmazonProductDO;
 import cn.iocoder.yudao.module.amazon.listing.dal.mysql.AmazonProductMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -21,12 +21,12 @@ public class ListingDiagnosisServiceImpl implements ListingDiagnosisService {
 
     @Override
     public Map<String, Object> diagnose(Long productId) {
-        var product = productMapper.selectById(productId);
+        AmazonProductDO product = productMapper.selectById(productId);
         if (product == null) {
             throw new IllegalArgumentException("Product not found: " + productId);
         }
 
-        var result = new LinkedHashMap<String, Object>();
+        LinkedHashMap<String, Object> result = new LinkedHashMap<String, Object>();
         diagnoseTitle(product, result);
         diagnoseBulletPoints(product, result);
         diagnosePrice(product, result);
@@ -35,7 +35,7 @@ public class ListingDiagnosisServiceImpl implements ListingDiagnosisService {
     }
 
     private void diagnoseTitle(AmazonProductDO product, Map<String, Object> result) {
-        var title = product.getTitle();
+        String title = product.getTitle();
         if (title == null || title.length() < 50) {
             result.put("title", "标题过短，建议 80-200 字符，包含核心关键词");
         } else if (title.length() > 200) {
@@ -46,7 +46,7 @@ public class ListingDiagnosisServiceImpl implements ListingDiagnosisService {
     }
 
     private void diagnoseBulletPoints(AmazonProductDO product, Map<String, Object> result) {
-        var bullets = product.getBulletPoints();
+        List<String> bullets = product.getBulletPoints();
         if (bullets == null || bullets.size() < 5) {
             result.put("bulletPoints", "五点描述不足 5 条，建议补全");
         } else {

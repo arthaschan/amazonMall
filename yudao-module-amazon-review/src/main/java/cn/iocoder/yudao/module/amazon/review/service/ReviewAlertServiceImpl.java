@@ -4,7 +4,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.amazon.review.controller.admin.vo.ReviewAlertPageReqVO;
 import cn.iocoder.yudao.module.amazon.review.dal.dataobject.AmazonReviewAlertDO;
 import cn.iocoder.yudao.module.amazon.review.dal.mysql.AmazonReviewAlertMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -27,7 +27,7 @@ public class ReviewAlertServiceImpl implements ReviewAlertService {
 
     @Override
     public void acknowledgeAlert(Long alertId) {
-        var alert = alertMapper.selectById(alertId);
+        AmazonReviewAlertDO alert = alertMapper.selectById(alertId);
         if (alert != null) {
             alert.setAcknowledged(true);
             alertMapper.updateById(alert);

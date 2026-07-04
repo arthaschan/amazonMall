@@ -11,8 +11,8 @@ import cn.iocoder.yudao.module.amazon.research.service.NicheService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
-import jakarta.validation.Valid;
+import javax.annotation.Resource;
+import javax.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -65,7 +65,7 @@ public class NicheController {
     @Operation(summary = "品类分页列表")
     @PreAuthorize("@ss.hasPermission('amazon:research:niche:query')")
     public CommonResult<PageResult<NicheRespVO>> getNichePage(@Valid NichePageReqVO reqVO) {
-        var page = nicheService.getNichePage(reqVO);
+        PageResult<AmazonNicheDO> page = nicheService.getNichePage(reqVO);
         return success(BeanUtils.toBean(page, NicheRespVO.class));
     }
 

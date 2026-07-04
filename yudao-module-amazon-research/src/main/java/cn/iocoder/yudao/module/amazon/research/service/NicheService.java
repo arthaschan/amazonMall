@@ -5,7 +5,7 @@ import cn.iocoder.yudao.module.amazon.research.controller.admin.vo.NichePageReqV
 import cn.iocoder.yudao.module.amazon.research.controller.admin.vo.NicheSaveReqVO;
 import cn.iocoder.yudao.module.amazon.research.dal.dataobject.AmazonNicheDO;
 
-import jakarta.validation.Valid;
+import javax.validation.Valid;
 
 /**
  * 选品品类 Service 接口。

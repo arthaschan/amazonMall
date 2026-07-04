@@ -15,7 +15,7 @@ public class AiChatServiceImpl implements AiChatService {
     @Override
     public AiChatRespVO chat(Long shopId, String question) {
         // TODO: 实现 NL2SQL 或 LLM-based 数据查询
-        var resp = new AiChatRespVO();
+        AiChatRespVO resp = new AiChatRespVO();
         resp.setAnswer("正在分析您的问题: \"" + question + "\"。AI 数据分析功能即将上线。");
         resp.setDataReference(null);
         return resp;

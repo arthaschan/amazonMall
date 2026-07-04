@@ -19,11 +19,11 @@ public class ProfitCalculatorServiceImpl implements ProfitCalculatorService {
     @Override
     public ProfitDetail calculateProfit(BigDecimal sellingPrice, BigDecimal purchaseCost,
                                         BigDecimal shippingCost, String marketplaceId) {
-        var referralFee = sellingPrice.multiply(REFERRAL_FEE_RATE).setScale(2, RoundingMode.HALF_UP);
-        var fbaFee = DEFAULT_FBA_FEE; // TODO: 根据尺寸/重量动态计算
-        var totalCost = purchaseCost.add(shippingCost).add(referralFee).add(fbaFee);
-        var profit = sellingPrice.subtract(totalCost);
-        var profitRate = sellingPrice.compareTo(BigDecimal.ZERO) > 0
+        BigDecimal referralFee = sellingPrice.multiply(REFERRAL_FEE_RATE).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal fbaFee = DEFAULT_FBA_FEE; // TODO: 根据尺寸/重量动态计算
+        BigDecimal totalCost = purchaseCost.add(shippingCost).add(referralFee).add(fbaFee);
+        BigDecimal profit = sellingPrice.subtract(totalCost);
+        BigDecimal profitRate = sellingPrice.compareTo(BigDecimal.ZERO) > 0
                 ? profit.divide(sellingPrice, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
                 : BigDecimal.ZERO;
 

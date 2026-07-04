@@ -7,7 +7,7 @@ import cn.iocoder.yudao.module.amazon.listing.dal.mysql.AmazonAutoPriceRuleMappe
 import cn.iocoder.yudao.module.amazon.listing.dal.mysql.AmazonProductMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 

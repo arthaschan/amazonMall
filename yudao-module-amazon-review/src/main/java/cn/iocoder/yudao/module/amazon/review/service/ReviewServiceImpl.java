@@ -4,7 +4,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.amazon.review.controller.admin.vo.ReviewPageReqVO;
 import cn.iocoder.yudao.module.amazon.review.dal.dataobject.AmazonReviewDO;
 import cn.iocoder.yudao.module.amazon.review.dal.mysql.AmazonReviewMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

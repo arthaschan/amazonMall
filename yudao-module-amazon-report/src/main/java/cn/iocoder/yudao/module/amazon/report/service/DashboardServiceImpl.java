@@ -1,8 +1,9 @@
 package cn.iocoder.yudao.module.amazon.report.service;
 
 import cn.iocoder.yudao.module.amazon.report.controller.admin.vo.DashboardRespVO;
+import cn.iocoder.yudao.module.amazon.report.dal.dataobject.AmazonDashboardMetricDO;
 import cn.iocoder.yudao.module.amazon.report.dal.mysql.AmazonDashboardMetricMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -18,22 +19,22 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public DashboardRespVO getDashboard(Long shopId, LocalDate start, LocalDate end) {
-        var metrics = metricMapper.selectByDateRange(shopId, start, end);
+        List<AmazonDashboardMetricDO> metrics = metricMapper.selectByDateRange(shopId, start, end);
 
-        var resp = new DashboardRespVO();
+        DashboardRespVO resp = new DashboardRespVO();
         BigDecimal totalSales = BigDecimal.ZERO;
         int totalOrders = 0;
         BigDecimal totalAdSpend = BigDecimal.ZERO;
         BigDecimal totalProfit = BigDecimal.ZERO;
-        var trends = new ArrayList<DashboardRespVO.TrendPoint>();
+        ArrayList<DashboardRespVO.TrendPoint> trends = new ArrayList<DashboardRespVO.TrendPoint>();
 
-        for (var m : metrics) {
+        for (AmazonDashboardMetricDO m : metrics) {
             if (m.getTotalSales() != null) totalSales = totalSales.add(m.getTotalSales());
             if (m.getTotalOrders() != null) totalOrders += m.getTotalOrders();
             if (m.getAdSpend() != null) totalAdSpend = totalAdSpend.add(m.getAdSpend());
             if (m.getProfit() != null) totalProfit = totalProfit.add(m.getProfit());
 
-            var tp = new DashboardRespVO.TrendPoint();
+            DashboardRespVO.TrendPoint tp = new DashboardRespVO.TrendPoint();
             tp.setDate(m.getMetricDate().toString());
             tp.setSales(m.getTotalSales());
             tp.setOrders(m.getTotalOrders());
@@ -49,7 +50,7 @@ public class DashboardServiceImpl implements DashboardService {
 
         // 取最新的库存健康评分和平均评分
         if (!metrics.isEmpty()) {
-            var latest = metrics.get(metrics.size() - 1);
+            AmazonDashboardMetricDO latest = metrics.get(metrics.size() - 1);
             resp.setInventoryHealthScore(latest.getInventoryHealthScore());
             resp.setAvgRating(latest.getAvgRating());
         }

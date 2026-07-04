@@ -8,7 +8,7 @@ import cn.iocoder.yudao.module.amazon.inventory.service.InventoryForecastService
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameters;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -35,7 +35,7 @@ public class InventoryForecastController {
     @PreAuthorize("@ss.hasPermission('amazon:inventory:forecast:generate')")
     public CommonResult<InventoryForecastRespVO> generateForecast(
             @RequestParam Long shopId, @RequestParam String asin) {
-        var forecast = forecastService.generateForecast(shopId, asin);
+        AmazonInventoryForecastDO forecast = forecastService.generateForecast(shopId, asin);
         return success(BeanUtils.toBean(forecast, InventoryForecastRespVO.class));
     }
 
@@ -44,7 +44,7 @@ public class InventoryForecastController {
     @PreAuthorize("@ss.hasPermission('amazon:inventory:forecast:query')")
     public CommonResult<List<InventoryForecastRespVO>> getForecasts(
             @RequestParam Long shopId, @RequestParam String asin) {
-        var list = forecastService.getForecasts(shopId, asin);
+        List<AmazonInventoryForecastDO> list = forecastService.getForecasts(shopId, asin);
         return success(BeanUtils.toBean(list, InventoryForecastRespVO.class));
     }
 
@@ -53,7 +53,7 @@ public class InventoryForecastController {
     @PreAuthorize("@ss.hasPermission('amazon:inventory:forecast:query')")
     public CommonResult<InventoryForecastRespVO> getLatest(
             @RequestParam Long shopId, @RequestParam String asin) {
-        var forecast = forecastService.getLatestForecast(shopId, asin);
+        AmazonInventoryForecastDO forecast = forecastService.getLatestForecast(shopId, asin);
         return success(BeanUtils.toBean(forecast, InventoryForecastRespVO.class));
     }
 }

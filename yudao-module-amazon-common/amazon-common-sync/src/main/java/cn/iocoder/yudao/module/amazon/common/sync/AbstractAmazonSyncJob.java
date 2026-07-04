@@ -5,7 +5,7 @@ import cn.iocoder.yudao.module.amazon.shop.dal.dataobject.AmazonShopDO;
 import cn.iocoder.yudao.module.amazon.shop.service.AmazonShopService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -107,7 +107,7 @@ public abstract class AbstractAmazonSyncJob implements JobHandler {
      * @return 解析后的对象；若参数为空则返回 null
      */
     protected <T> T parseJsonParam(String param, Class<T> clazz) {
-        if (param == null || param.isBlank()) {
+        if (param == null || param.trim().isEmpty()) {
             return null;
         }
         try {

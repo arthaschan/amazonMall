@@ -1,5 +1,9 @@
 package cn.iocoder.yudao.module.amazon.listing.service;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.math.BigDecimal;
 
 /**
@@ -22,13 +26,16 @@ public interface ProfitCalculatorService {
     ProfitDetail calculateProfit(BigDecimal sellingPrice, BigDecimal purchaseCost,
                                  BigDecimal shippingCost, String marketplaceId);
 
-    record ProfitDetail(
-            BigDecimal revenue,
-            BigDecimal fbaFee,
-            BigDecimal referralFee,
-            BigDecimal shippingCost,
-            BigDecimal purchaseCost,
-            BigDecimal profit,
-            BigDecimal profitRate
-    ) {}
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    class ProfitDetail {
+        private BigDecimal revenue;
+        private BigDecimal fbaFee;
+        private BigDecimal referralFee;
+        private BigDecimal shippingCost;
+        private BigDecimal purchaseCost;
+        private BigDecimal profit;
+        private BigDecimal profitRate;
+    }
 }

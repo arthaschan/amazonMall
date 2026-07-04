@@ -6,7 +6,7 @@ import cn.iocoder.yudao.module.amazon.listing.controller.admin.vo.ProductPageReq
 import cn.iocoder.yudao.module.amazon.listing.controller.admin.vo.ProductSaveReqVO;
 import cn.iocoder.yudao.module.amazon.listing.dal.dataobject.AmazonProductDO;
 import cn.iocoder.yudao.module.amazon.listing.dal.mysql.AmazonProductMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -24,7 +24,7 @@ public class ProductListingServiceImpl implements ProductListingService {
 
     @Override
     public Long createProduct(ProductSaveReqVO reqVO) {
-        var product = BeanUtils.toBean(reqVO, AmazonProductDO.class);
+        AmazonProductDO product = BeanUtils.toBean(reqVO, AmazonProductDO.class);
         productMapper.insert(product);
         return product.getId();
     }

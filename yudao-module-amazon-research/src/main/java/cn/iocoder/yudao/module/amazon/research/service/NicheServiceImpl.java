@@ -6,7 +6,7 @@ import cn.iocoder.yudao.module.amazon.research.controller.admin.vo.NichePageReqV
 import cn.iocoder.yudao.module.amazon.research.controller.admin.vo.NicheSaveReqVO;
 import cn.iocoder.yudao.module.amazon.research.dal.dataobject.AmazonNicheDO;
 import cn.iocoder.yudao.module.amazon.research.dal.mysql.AmazonNicheMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -31,7 +31,7 @@ public class NicheServiceImpl implements NicheService {
 
     @Override
     public Long createNiche(NicheSaveReqVO reqVO) {
-        var niche = BeanUtils.toBean(reqVO, AmazonNicheDO.class);
+        AmazonNicheDO niche = BeanUtils.toBean(reqVO, AmazonNicheDO.class);
         niche.setStatus(0); // 草稿
         nicheMapper.insert(niche);
         return niche.getId();
@@ -40,7 +40,7 @@ public class NicheServiceImpl implements NicheService {
     @Override
     public void updateNiche(NicheSaveReqVO reqVO) {
         validateNicheExists(reqVO.getId());
-        var updateObj = BeanUtils.toBean(reqVO, AmazonNicheDO.class);
+        AmazonNicheDO updateObj = BeanUtils.toBean(reqVO, AmazonNicheDO.class);
         nicheMapper.updateById(updateObj);
     }
 
@@ -62,14 +62,14 @@ public class NicheServiceImpl implements NicheService {
 
     @Override
     public void recalculateScore(Long id) {
-        var niche = validateNicheExists(id);
+        AmazonNicheDO niche = validateNicheExists(id);
         BigDecimal score = scoreCalculator.calculate(niche);
         niche.setOmniscientScore(score);
         nicheMapper.updateById(niche);
     }
 
     private AmazonNicheDO validateNicheExists(Long id) {
-        var niche = nicheMapper.selectById(id);
+        AmazonNicheDO niche = nicheMapper.selectById(id);
         if (niche == null) {
             throw exception(new cn.iocoder.yudao.framework.common.exception.ErrorCode(1_200_001_000, "品类不存在"));
         }

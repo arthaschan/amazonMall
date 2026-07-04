@@ -3,7 +3,7 @@ package cn.iocoder.yudao.module.amazon.inventory.job;
 import cn.iocoder.yudao.module.amazon.common.sync.AbstractAmazonSyncJob;
 import cn.iocoder.yudao.module.amazon.inventory.service.InventorySyncService;
 import cn.iocoder.yudao.module.amazon.shop.dal.dataobject.AmazonShopDO;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 

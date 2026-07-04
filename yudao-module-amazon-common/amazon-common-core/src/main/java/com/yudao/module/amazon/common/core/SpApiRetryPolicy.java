@@ -4,6 +4,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -29,24 +32,26 @@ public class SpApiRetryPolicy {
     private static final Logger log = LoggerFactory.getLogger(SpApiRetryPolicy.class);
 
     /** HTTP status codes that are safe to retry (transient failures). */
-    private static final Set<Integer> RETRYABLE_STATUS_CODES = Set.of(
-            429,  // Too Many Requests (rate-limited)
-            500,  // Internal Server Error
-            502,  // Bad Gateway
-            503,  // Service Unavailable
-            504   // Gateway Timeout
-    );
+    private static final Set<Integer> RETRYABLE_STATUS_CODES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    429,  // Too Many Requests (rate-limited)
+                    500,  // Internal Server Error
+                    502,  // Bad Gateway
+                    503,  // Service Unavailable
+                    504   // Gateway Timeout
+            )));
 
     /** HTTP status codes that must NOT be retried (permanent client errors). */
-    private static final Set<Integer> NON_RETRYABLE_STATUS_CODES = Set.of(
-            400,  // Bad Request
-            401,  // Unauthorized (token refresh needed, not simple retry)
-            403,  // Forbidden
-            404,  // Not Found
-            409,  // Conflict
-            413,  // Payload Too Large
-            422   // Unprocessable Entity
-    );
+    private static final Set<Integer> NON_RETRYABLE_STATUS_CODES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    400,  // Bad Request
+                    401,  // Unauthorized (token refresh needed, not simple retry)
+                    403,  // Forbidden
+                    404,  // Not Found
+                    409,  // Conflict
+                    413,  // Payload Too Large
+                    422   // Unprocessable Entity
+            )));
 
     private final AmazonProperties properties;
 

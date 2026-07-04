@@ -10,9 +10,8 @@ import com.yudao.module.amazon.common.core.SpApiClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.Resource;
-import java.util.List;
-import java.util.Map;
+import javax.annotation.Resource;
+import java.util.*;
 
 /**
  * 评论同步服务实现。
@@ -64,10 +63,9 @@ public class ReviewSyncServiceImpl implements ReviewSyncService {
         String sellerId = shop.getSellerId();
 
         // ── Step 1: 请求评论报告 ───────────────────────────────────────────
-        Map<String, Object> reportRequest = Map.of(
-                "reportType", REPORT_TYPE,
-                "marketplaceIds", List.of(marketplaceId)
-        );
+        Map<String, Object> reportRequest = new HashMap<String, Object>();
+        reportRequest.put("reportType", REPORT_TYPE);
+        reportRequest.put("marketplaceIds", Collections.singletonList(marketplaceId));
 
         JsonNode createResponse;
         try {
@@ -178,19 +176,19 @@ public class ReviewSyncServiceImpl implements ReviewSyncService {
                     attempt, MAX_POLL_ATTEMPTS, reportId, processingStatus);
 
             switch (processingStatus) {
-                case "DONE" -> {
+                case "DONE": {
                     String reportDocumentId = statusResponse.path("reportDocumentId").asText(null);
-                    if (reportDocumentId == null || reportDocumentId.isBlank()) {
+                    if (reportDocumentId == null || reportDocumentId.trim().isEmpty()) {
                         throw new RuntimeException("Report DONE but missing reportDocumentId: " + reportId);
                     }
                     log.info("[ReviewSync] 报告生成完成 reportId={}, documentId={}", reportId, reportDocumentId);
                     return reportDocumentId;
                 }
-                case "CANCELLED" -> {
+                case "CANCELLED": {
                     log.warn("[ReviewSync] 报告已被取消 reportId={}, shopId={}", reportId, shopId);
                     throw new RuntimeException("Report was cancelled: " + reportId);
                 }
-                case "FATAL" -> {
+                case "FATAL": {
                     String errorMsg = statusResponse.path("processingStatusMessage").asText("unknown error");
                     log.error("[ReviewSync] 报告生成失败 reportId={}, error={}", reportId, errorMsg);
                     throw new RuntimeException("Report generation failed: " + reportId + " - " + errorMsg);
@@ -233,14 +231,14 @@ public class ReviewSyncServiceImpl implements ReviewSyncService {
 
     private static Integer parseIntSafe(String value) {
         try {
-            return (value != null && !value.isBlank()) ? Integer.parseInt(value.trim()) : null;
+            return (value != null && !value.trim().isEmpty()) ? Integer.parseInt(value.trim()) : null;
         } catch (NumberFormatException e) {
             return null;
         }
     }
 
     private static java.time.LocalDateTime parseDateTimeSafe(String value) {
-        if (value == null || value.isBlank()) return null;
+        if (value == null || value.trim().isEmpty()) return null;
         try {
             return java.time.LocalDateTime.parse(value.trim(),
                     java.time.format.DateTimeFormatter.ISO_DATE_TIME);

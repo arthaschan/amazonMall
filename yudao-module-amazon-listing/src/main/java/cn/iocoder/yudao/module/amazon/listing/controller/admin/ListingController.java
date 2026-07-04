@@ -9,8 +9,8 @@ import cn.iocoder.yudao.module.amazon.listing.service.ProductListingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
-import jakarta.validation.Valid;
+import javax.annotation.Resource;
+import javax.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -54,7 +54,7 @@ public class ListingController {
     @Operation(summary = "获取产品详情")
     @PreAuthorize("@ss.hasPermission('amazon:listing:product:query')")
     public CommonResult<ProductRespVO> getProduct(@RequestParam Long id) {
-        var product = productListingService.getProduct(id);
+        AmazonProductDO product = productListingService.getProduct(id);
         return success(BeanUtils.toBean(product, ProductRespVO.class));
     }
 
@@ -62,7 +62,7 @@ public class ListingController {
     @Operation(summary = "产品分页列表")
     @PreAuthorize("@ss.hasPermission('amazon:listing:product:query')")
     public CommonResult<PageResult<ProductRespVO>> getProductPage(@Valid ProductPageReqVO reqVO) {
-        var page = productListingService.getProductPage(reqVO);
+        PageResult<AmazonProductDO> page = productListingService.getProductPage(reqVO);
         return success(BeanUtils.toBean(page, ProductRespVO.class));
     }
 }

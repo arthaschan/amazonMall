@@ -6,7 +6,7 @@ import cn.iocoder.yudao.module.amazon.shop.controller.admin.vo.AmazonApiStatsRes
 import cn.iocoder.yudao.module.amazon.shop.dal.dataobject.AmazonApiLogDO;
 import cn.iocoder.yudao.module.amazon.shop.dal.mysql.AmazonApiLogMapper;
 import cn.iocoder.yudao.module.amazon.shop.service.AmazonApiMonitorService;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;

@@ -73,12 +73,21 @@ public class SpApiTokenStore {
 
     /**
      * Snapshot of a seller's access token with metadata.
-     *
-     * @param sellerId    the Amazon seller identifier
-     * @param accessToken the access token string
-     * @param expiresAt   when the token expires
      */
-    public record AccessTokenEntry(String sellerId, String accessToken, Instant expiresAt) {
+    public static class AccessTokenEntry {
+        private final String sellerId;
+        private final String accessToken;
+        private final Instant expiresAt;
+
+        public AccessTokenEntry(String sellerId, String accessToken, Instant expiresAt) {
+            this.sellerId = sellerId;
+            this.accessToken = accessToken;
+            this.expiresAt = expiresAt;
+        }
+
+        public String getSellerId() { return sellerId; }
+        public String getAccessToken() { return accessToken; }
+        public Instant getExpiresAt() { return expiresAt; }
 
         public boolean isExpired() {
             return Instant.now().isAfter(expiresAt);
@@ -91,12 +100,22 @@ public class SpApiTokenStore {
 
     /**
      * Persisted refresh token record (matches the database schema).
-     *
-     * @param sellerId     the Amazon seller identifier
-     * @param refreshToken the encrypted refresh token
-     * @param updatedAt    when the record was last updated
      */
-    public record RefreshTokenEntry(String sellerId, String refreshToken, Instant updatedAt) {}
+    public static class RefreshTokenEntry {
+        private final String sellerId;
+        private final String refreshToken;
+        private final Instant updatedAt;
+
+        public RefreshTokenEntry(String sellerId, String refreshToken, Instant updatedAt) {
+            this.sellerId = sellerId;
+            this.refreshToken = refreshToken;
+            this.updatedAt = updatedAt;
+        }
+
+        public String getSellerId() { return sellerId; }
+        public String getRefreshToken() { return refreshToken; }
+        public Instant getUpdatedAt() { return updatedAt; }
+    }
 
     // ── Public API ────────────────────────────────────────────────────────
 
@@ -119,8 +138,8 @@ public class SpApiTokenStore {
 
         if (cached != null && !cached.isExpiringSoon(buffer)) {
             log.debug("Using cached access token for seller [{}] (expires {})",
-                    sellerId, cached.expiresAt());
-            return cached.accessToken();
+                    sellerId, cached.getExpiresAt());
+            return cached.getAccessToken();
         }
 
         // 2. Cache miss or expired: refresh
@@ -175,11 +194,11 @@ public class SpApiTokenStore {
      */
     public void storeTokens(String sellerId, SpApiTokenRefresher.TokenResponse tokenResponse) {
         // Cache the access token in Redis
-        cacheAccessToken(sellerId, tokenResponse.accessToken(), tokenResponse.expiresIn());
+        cacheAccessToken(sellerId, tokenResponse.getAccessToken(), tokenResponse.getExpiresIn());
 
         // Persist refresh token if a new one was returned (auth-code flow)
-        if (tokenResponse.refreshToken() != null && !tokenResponse.refreshToken().isBlank()) {
-            storeRefreshToken(sellerId, tokenResponse.refreshToken());
+        if (tokenResponse.getRefreshToken() != null && !tokenResponse.getRefreshToken().trim().isEmpty()) {
+            storeRefreshToken(sellerId, tokenResponse.getRefreshToken());
         }
     }
 
@@ -234,10 +253,10 @@ public class SpApiTokenStore {
      */
     private String refreshAndCacheAccessToken(String sellerId) {
         String refreshToken = getRefreshToken(sellerId);
-        if (refreshToken == null || refreshToken.isBlank()) {
+        if (refreshToken == null || refreshToken.trim().isEmpty()) {
             throw new SpApiException.SpApiAuthException(
-                    "No refresh token found for seller [%s]. Re-authorisation required."
-                            .formatted(sellerId),
+                    String.format("No refresh token found for seller [%s]. Re-authorisation required.",
+                            sellerId),
                     null);
         }
 
@@ -245,11 +264,11 @@ public class SpApiTokenStore {
             SpApiTokenRefresher.TokenResponse response =
                     tokenRefresher.refreshAccessTokenWithRetry(refreshToken, 2);
 
-            cacheAccessToken(sellerId, response.accessToken(), response.expiresIn());
+            cacheAccessToken(sellerId, response.getAccessToken(), response.getExpiresIn());
 
             log.info("Successfully refreshed access token for seller [{}] (expires in {}s)",
-                    sellerId, response.expiresIn());
-            return response.accessToken();
+                    sellerId, response.getExpiresIn());
+            return response.getAccessToken();
 
         } catch (SpApiException.SpApiAuthException e) {
             log.error("Failed to refresh access token for seller [{}]: {}", sellerId, e.getMessage());
@@ -274,11 +293,9 @@ public class SpApiTokenStore {
      * }</pre>
      */
     private void persistRefreshToken(String sellerId, String encryptedToken) {
-        String sql = """
-                INSERT INTO amazon_refresh_token (seller_id, refresh_token, updated_at)
-                VALUES (?, ?, ?)
-                ON DUPLICATE KEY UPDATE refresh_token = VALUES(refresh_token), updated_at = VALUES(updated_at)
-                """;
+        String sql = "INSERT INTO amazon_refresh_token (seller_id, refresh_token, updated_at) "
+                + "VALUES (?, ?, ?) "
+                + "ON DUPLICATE KEY UPDATE refresh_token = VALUES(refresh_token), updated_at = VALUES(updated_at)";
 
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {

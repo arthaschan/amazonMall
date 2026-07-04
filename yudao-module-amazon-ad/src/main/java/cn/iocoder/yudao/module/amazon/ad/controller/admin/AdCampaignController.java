@@ -9,8 +9,8 @@ import cn.iocoder.yudao.module.amazon.ad.service.AdCampaignService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
-import jakarta.validation.Valid;
+import javax.annotation.Resource;
+import javax.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -31,7 +31,7 @@ public class AdCampaignController {
     @Parameter(name = "id", description = "活动 ID", required = true)
     @PreAuthorize("@ss.hasPermission('amazon:ad:campaign:query')")
     public CommonResult<CampaignRespVO> getCampaign(@RequestParam Long id) {
-        var campaign = campaignService.getCampaign(id);
+        AmazonAdCampaignDO campaign = campaignService.getCampaign(id);
         return success(BeanUtils.toBean(campaign, CampaignRespVO.class));
     }
 
@@ -39,7 +39,7 @@ public class AdCampaignController {
     @Operation(summary = "广告活动分页列表")
     @PreAuthorize("@ss.hasPermission('amazon:ad:campaign:query')")
     public CommonResult<PageResult<CampaignRespVO>> getCampaignPage(@Valid CampaignPageReqVO reqVO) {
-        var page = campaignService.getCampaignPage(reqVO);
+        PageResult<AmazonAdCampaignDO> page = campaignService.getCampaignPage(reqVO);
         return success(BeanUtils.toBean(page, CampaignRespVO.class));
     }
 

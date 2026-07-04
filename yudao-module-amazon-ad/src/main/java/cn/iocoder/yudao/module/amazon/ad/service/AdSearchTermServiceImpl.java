@@ -4,7 +4,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.amazon.ad.controller.admin.vo.SearchTermPageReqVO;
 import cn.iocoder.yudao.module.amazon.ad.dal.dataobject.AmazonAdSearchTermDO;
 import cn.iocoder.yudao.module.amazon.ad.dal.mysql.AmazonAdSearchTermMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 @Service

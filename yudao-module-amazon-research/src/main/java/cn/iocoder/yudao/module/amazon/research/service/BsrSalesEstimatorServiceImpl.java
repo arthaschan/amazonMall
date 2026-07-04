@@ -2,7 +2,7 @@ package cn.iocoder.yudao.module.amazon.research.service;
 
 import cn.iocoder.yudao.module.amazon.research.dal.dataobject.AmazonBsrRegressionDO;
 import cn.iocoder.yudao.module.amazon.research.dal.mysql.AmazonBsrRegressionMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -21,7 +21,7 @@ public class BsrSalesEstimatorServiceImpl implements BsrSalesEstimatorService {
 
     @Override
     public Integer estimateMonthlySales(String categoryId, String marketplaceId, int bsr) {
-        var regression = regressionMapper.selectByCategoryAndMarketplace(categoryId, marketplaceId);
+        AmazonBsrRegressionDO regression = regressionMapper.selectByCategoryAndMarketplace(categoryId, marketplaceId);
         if (regression == null || regression.getCoefficientA() == null) {
             // 使用默认经验公式
             return estimateDefault(bsr);

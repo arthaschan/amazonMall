@@ -4,7 +4,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.amazon.ad.controller.admin.vo.CampaignPageReqVO;
 import cn.iocoder.yudao.module.amazon.ad.dal.dataobject.AmazonAdCampaignDO;
 import cn.iocoder.yudao.module.amazon.ad.dal.mysql.AmazonAdCampaignMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 @Service

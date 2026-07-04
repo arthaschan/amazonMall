@@ -5,7 +5,7 @@ import cn.iocoder.yudao.module.amazon.review.controller.admin.vo.CustomerTemplat
 import cn.iocoder.yudao.module.amazon.review.controller.admin.vo.CustomerTemplateSaveReqVO;
 import cn.iocoder.yudao.module.amazon.review.dal.dataobject.AmazonCustomerTemplateDO;
 
-import jakarta.validation.Valid;
+import javax.validation.Valid;
 
 /**
  * 客服消息模板 Service。

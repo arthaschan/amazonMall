@@ -2,7 +2,7 @@ package cn.iocoder.yudao.module.amazon.review.service;
 
 import cn.iocoder.yudao.module.amazon.review.dal.dataobject.AmazonReviewDO;
 import cn.iocoder.yudao.module.amazon.review.dal.mysql.AmazonReviewMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -16,7 +16,7 @@ public class AiReviewAnalysisServiceImpl implements AiReviewAnalysisService {
 
     @Override
     public void analyzeReview(Long reviewId) {
-        var review = reviewMapper.selectById(reviewId);
+        AmazonReviewDO review = reviewMapper.selectById(reviewId);
         if (review == null) return;
         // TODO: 调用 AI 模型进行情感分析和主题提取
         review.setAiSentiment(review.getRating() >= 4 ? "POSITIVE" :
@@ -26,8 +26,8 @@ public class AiReviewAnalysisServiceImpl implements AiReviewAnalysisService {
 
     @Override
     public void analyzeByAsin(Long shopId, String asin) {
-        var reviews = reviewMapper.selectByAsin(shopId, asin);
-        for (var review : reviews) {
+        List<AmazonReviewDO> reviews = reviewMapper.selectByAsin(shopId, asin);
+        for (AmazonReviewDO review : reviews) {
             // TODO: 批量 AI 分析
             analyzeReview(review.getId());
         }
@@ -35,36 +35,36 @@ public class AiReviewAnalysisServiceImpl implements AiReviewAnalysisService {
 
     @Override
     public Map<String, Object> getAggregateAnalysis(Long shopId, String asin) {
-        var reviews = reviewMapper.selectByAsin(shopId, asin);
-        var result = new LinkedHashMap<String, Object>();
+        List<AmazonReviewDO> reviews = reviewMapper.selectByAsin(shopId, asin);
+        LinkedHashMap<String, Object> result = new LinkedHashMap<String, Object>();
 
         // 情感分布
-        var sentimentCount = reviews.stream()
+        long sentimentCount = reviews.stream();
                 .filter(r -> r.getAiSentiment() != null)
                 .collect(Collectors.groupingBy(AmazonReviewDO::getAiSentiment, Collectors.counting()));
         result.put("sentimentDistribution", sentimentCount);
 
         // 高频主题
-        var allTopics = reviews.stream()
+        List<String> allTopics = reviews.stream();
                 .filter(r -> r.getAiTopics() != null)
                 .flatMap(r -> r.getAiTopics().stream())
                 .collect(Collectors.groupingBy(t -> t, Collectors.counting()));
         result.put("topTopics", allTopics.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                .limit(10).toList());
+                .limit(10).collect(java.util.stream.Collectors.toList()));
 
         // 痛点汇总
-        var allPainPoints = reviews.stream()
+        List<String> allPainPoints = reviews.stream();
                 .filter(r -> r.getAiPainPoints() != null)
                 .flatMap(r -> r.getAiPainPoints().stream())
-                .distinct().toList();
+                .distinct().collect(java.util.stream.Collectors.toList());
         result.put("painPoints", allPainPoints);
 
         // 卖点汇总
-        var allSellingPoints = reviews.stream()
+        List<String> allSellingPoints = reviews.stream();
                 .filter(r -> r.getAiSellingPoints() != null)
                 .flatMap(r -> r.getAiSellingPoints().stream())
-                .distinct().toList();
+                .distinct().collect(java.util.stream.Collectors.toList());
         result.put("sellingPoints", allSellingPoints);
 
         return result;

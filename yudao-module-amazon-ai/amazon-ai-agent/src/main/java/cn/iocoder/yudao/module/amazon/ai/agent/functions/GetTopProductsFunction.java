@@ -7,7 +7,7 @@ import cn.iocoder.yudao.module.amazon.order.dal.dataobject.AmazonOrderDO;
 import cn.iocoder.yudao.module.amazon.order.dal.dataobject.AmazonOrderItemDO;
 import cn.iocoder.yudao.module.amazon.order.dal.mysql.AmazonOrderItemMapper;
 import cn.iocoder.yudao.module.amazon.order.dal.mysql.AmazonOrderMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

@@ -1,6 +1,6 @@
 package com.yudao.module.amazon.common.core;
 
-import jakarta.validation.constraints.NotBlank;
+import javax.validation.constraints.NotBlank;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -110,7 +110,7 @@ public class AmazonProperties {
      * <p>Endpoints not listed here fall back to Amazon's documented burst /
      * restore rates returned in the {@code x-amzn-RateLimit-Limit} header.
      */
-    private Map<String, RateLimitConfig> rateLimits = Map.of();
+    private Map<String, RateLimitConfig> rateLimits = new java.util.HashMap<String, RateLimitConfig>();
 
     // ── Retry ─────────────────────────────────────────────────────────────
 
@@ -132,19 +132,22 @@ public class AmazonProperties {
      * @return the production or sandbox endpoint URL
      */
     public String resolveEndpoint(String awsRegion) {
-        String base = switch (awsRegion) {
-            case "us-east-1" -> sandbox
+        String base;
+        if ("us-east-1".equals(awsRegion)) {
+            base = sandbox
                     ? "https://sandbox.sellingpartnerapi-na.amazon.com"
                     : "https://sellingpartnerapi-na.amazon.com";
-            case "eu-west-1" -> sandbox
+        } else if ("eu-west-1".equals(awsRegion)) {
+            base = sandbox
                     ? "https://sandbox.sellingpartnerapi-eu.amazon.com"
                     : "https://sellingpartnerapi-eu.amazon.com";
-            case "us-west-2" -> sandbox
+        } else if ("us-west-2".equals(awsRegion)) {
+            base = sandbox
                     ? "https://sandbox.sellingpartnerapi-fe.amazon.com"
                     : "https://sellingpartnerapi-fe.amazon.com";
-            default -> throw new IllegalArgumentException(
-                    "Unsupported AWS region for SP-API: " + awsRegion);
-        };
+        } else {
+            throw new IllegalArgumentException("Unsupported AWS region for SP-API: " + awsRegion);
+        }
         return base;
     }
 
@@ -155,13 +158,15 @@ public class AmazonProperties {
      * @return {@code NA}, {@code EU}, or {@code FE}
      */
     public String resolveRegionCode(String awsRegion) {
-        return switch (awsRegion) {
-            case "us-east-1" -> "NA";
-            case "eu-west-1" -> "EU";
-            case "us-west-2" -> "FE";
-            default -> throw new IllegalArgumentException(
-                    "Unsupported AWS region: " + awsRegion);
-        };
+        if ("us-east-1".equals(awsRegion)) {
+            return "NA";
+        } else if ("eu-west-1".equals(awsRegion)) {
+            return "EU";
+        } else if ("us-west-2".equals(awsRegion)) {
+            return "FE";
+        } else {
+            throw new IllegalArgumentException("Unsupported AWS region: " + awsRegion);
+        }
     }
 
     // ── Nested records ────────────────────────────────────────────────────
@@ -189,13 +194,25 @@ public class AmazonProperties {
         public void setPassword(String password) { this.password = password; }
     }
 
-    /** Per-endpoint rate-limit configuration record. */
-    public record RateLimitConfig(
-            /** Maximum burst capacity (tokens in the bucket). */
-            double burstCapacity,
-            /** Tokens restored per second. */
-            double restoreRatePerSecond
-    ) {}
+    /** Per-endpoint rate-limit configuration. */
+    public static class RateLimitConfig {
+        /** Maximum burst capacity (tokens in the bucket). */
+        private double burstCapacity;
+        /** Tokens restored per second. */
+        private double restoreRatePerSecond;
+
+        public RateLimitConfig() {}
+
+        public RateLimitConfig(double burstCapacity, double restoreRatePerSecond) {
+            this.burstCapacity = burstCapacity;
+            this.restoreRatePerSecond = restoreRatePerSecond;
+        }
+
+        public double getBurstCapacity() { return burstCapacity; }
+        public void setBurstCapacity(double burstCapacity) { this.burstCapacity = burstCapacity; }
+        public double getRestoreRatePerSecond() { return restoreRatePerSecond; }
+        public void setRestoreRatePerSecond(double restoreRatePerSecond) { this.restoreRatePerSecond = restoreRatePerSecond; }
+    }
 
     // ── Standard getters/setters ──────────────────────────────────────────
 

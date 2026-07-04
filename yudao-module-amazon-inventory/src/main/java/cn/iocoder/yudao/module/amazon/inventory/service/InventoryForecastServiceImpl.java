@@ -2,7 +2,7 @@ package cn.iocoder.yudao.module.amazon.inventory.service;
 
 import cn.iocoder.yudao.module.amazon.inventory.dal.dataobject.AmazonInventoryForecastDO;
 import cn.iocoder.yudao.module.amazon.inventory.dal.mysql.AmazonInventoryForecastMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -18,7 +18,7 @@ public class InventoryForecastServiceImpl implements InventoryForecastService {
     @Override
     public AmazonInventoryForecastDO generateForecast(Long shopId, String asin) {
         // TODO: 基于历史销量数据进行时间序列预测
-        var forecast = new AmazonInventoryForecastDO();
+        AmazonInventoryForecastDO forecast = new AmazonInventoryForecastDO();
         forecast.setShopId(shopId);
         forecast.setAsin(asin);
         forecast.setForecastDate(LocalDate.now().plusDays(7));

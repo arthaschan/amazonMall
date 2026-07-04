@@ -108,11 +108,11 @@ public enum AmazonMarketplaceEnum {
      * @return the AWS region string (us-east-1, eu-west-1, or us-west-2)
      */
     public String getAwsRegion() {
-        return switch (region) {
-            case "NA" -> "us-east-1";
-            case "EU" -> "eu-west-1";
-            case "FE" -> "us-west-2";
-            default -> throw new IllegalStateException("Unknown region: " + region);
-        };
+        switch (region) {
+            case "NA": return "us-east-1";
+            case "EU": return "eu-west-1";
+            case "FE": return "us-west-2";
+            default: throw new IllegalStateException("Unknown region: " + region);
+        }
     }
 }

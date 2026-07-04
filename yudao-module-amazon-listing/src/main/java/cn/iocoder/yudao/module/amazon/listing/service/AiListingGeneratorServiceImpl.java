@@ -4,7 +4,7 @@ import cn.iocoder.yudao.module.amazon.listing.dal.dataobject.AmazonListingVersio
 import cn.iocoder.yudao.module.amazon.listing.dal.dataobject.AmazonProductDO;
 import cn.iocoder.yudao.module.amazon.listing.dal.mysql.AmazonListingVersionMapper;
 import cn.iocoder.yudao.module.amazon.listing.dal.mysql.AmazonProductMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -26,13 +26,13 @@ public class AiListingGeneratorServiceImpl implements AiListingGeneratorService 
 
     @Override
     public AmazonListingVersionDO generate(Long productId, String prompt) {
-        var product = productMapper.selectById(productId);
+        AmazonProductDO product = productMapper.selectById(productId);
         if (product == null) {
             throw new IllegalArgumentException("Product not found: " + productId);
         }
 
         // TODO: 调用 AI 模型生成 Listing 内容
-        var version = buildNewVersion(product, true);
+        AmazonListingVersionDO version = buildNewVersion(product, true);
         version.setAiScore(new BigDecimal("85"));
         version.setChangeSummary("AI 全新生成: " + prompt);
         versionMapper.insert(version);
@@ -41,13 +41,13 @@ public class AiListingGeneratorServiceImpl implements AiListingGeneratorService 
 
     @Override
     public AmazonListingVersionDO optimize(Long productId, String prompt) {
-        var product = productMapper.selectById(productId);
+        AmazonProductDO product = productMapper.selectById(productId);
         if (product == null) {
             throw new IllegalArgumentException("Product not found: " + productId);
         }
 
         // TODO: 调用 AI 模型优化现有 Listing
-        var version = buildNewVersion(product, true);
+        AmazonListingVersionDO version = buildNewVersion(product, true);
         version.setAiScore(new BigDecimal("90"));
         version.setChangeSummary("AI 优化: " + prompt);
         versionMapper.insert(version);
@@ -55,11 +55,11 @@ public class AiListingGeneratorServiceImpl implements AiListingGeneratorService 
     }
 
     private AmazonListingVersionDO buildNewVersion(AmazonProductDO product, boolean aiGenerated) {
-        var versions = versionMapper.selectByProductId(product.getId());
+        List<AmazonListingVersionDO> versions = versionMapper.selectByProductId(product.getId());
         int nextVersion = versions.isEmpty() ? 1 : versions.stream()
                 .mapToInt(AmazonListingVersionDO::getVersionNum).max().orElse(0) + 1;
 
-        var version = new AmazonListingVersionDO();
+        AmazonListingVersionDO version = new AmazonListingVersionDO();
         version.setProductId(product.getId());
         version.setVersionNum(nextVersion);
         version.setTitle(product.getTitle());

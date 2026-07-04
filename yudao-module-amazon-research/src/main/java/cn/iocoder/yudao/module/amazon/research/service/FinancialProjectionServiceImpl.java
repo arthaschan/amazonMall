@@ -4,7 +4,7 @@ import cn.iocoder.yudao.module.amazon.research.dal.dataobject.AmazonFinancialPro
 import cn.iocoder.yudao.module.amazon.research.dal.dataobject.AmazonProductOpportunityDO;
 import cn.iocoder.yudao.module.amazon.research.dal.mysql.AmazonFinancialProjectionMapper;
 import cn.iocoder.yudao.module.amazon.research.dal.mysql.AmazonProductOpportunityMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 

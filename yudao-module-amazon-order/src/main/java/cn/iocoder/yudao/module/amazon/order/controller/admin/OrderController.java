@@ -12,8 +12,8 @@ import cn.iocoder.yudao.module.amazon.order.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.Resource;
-import jakarta.validation.Valid;
+import javax.annotation.Resource;
+import javax.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -39,8 +39,8 @@ public class OrderController {
     @Parameter(name = "id", description = "订单 ID", required = true)
     @PreAuthorize("@ss.hasPermission('amazon:order:query')")
     public CommonResult<OrderRespVO> getOrder(@RequestParam Long id) {
-        var order = orderService.getOrder(id);
-        var vo = BeanUtils.toBean(order, OrderRespVO.class);
+        AmazonOrderDO order = orderService.getOrder(id);
+        OrderRespVO vo = BeanUtils.toBean(order, OrderRespVO.class);
         if (vo != null) {
             List<AmazonOrderItemDO> items = orderItemMapper.selectByOrderId(id);
             vo.setItems(BeanUtils.toBean(items, OrderRespVO.OrderItemVO.class));
@@ -52,7 +52,7 @@ public class OrderController {
     @Operation(summary = "订单分页列表")
     @PreAuthorize("@ss.hasPermission('amazon:order:query')")
     public CommonResult<PageResult<OrderRespVO>> getOrderPage(@Valid OrderPageReqVO reqVO) {
-        var page = orderService.getOrderPage(reqVO);
+        PageResult<AmazonOrderDO> page = orderService.getOrderPage(reqVO);
         return success(BeanUtils.toBean(page, OrderRespVO.class));
     }
 }

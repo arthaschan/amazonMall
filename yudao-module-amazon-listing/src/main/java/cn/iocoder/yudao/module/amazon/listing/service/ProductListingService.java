@@ -5,7 +5,7 @@ import cn.iocoder.yudao.module.amazon.listing.controller.admin.vo.ProductPageReq
 import cn.iocoder.yudao.module.amazon.listing.controller.admin.vo.ProductSaveReqVO;
 import cn.iocoder.yudao.module.amazon.listing.dal.dataobject.AmazonProductDO;
 
-import jakarta.validation.Valid;
+import javax.validation.Valid;
 
 /**
  * 产品 Listing 管理 Service。

@@ -4,7 +4,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.amazon.inventory.controller.admin.vo.InventoryPageReqVO;
 import cn.iocoder.yudao.module.amazon.inventory.dal.dataobject.AmazonInventoryDO;
 import cn.iocoder.yudao.module.amazon.inventory.dal.mysql.AmazonInventoryMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

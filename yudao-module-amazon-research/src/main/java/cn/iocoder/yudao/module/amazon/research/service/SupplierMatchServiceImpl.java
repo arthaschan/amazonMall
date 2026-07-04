@@ -2,7 +2,7 @@ package cn.iocoder.yudao.module.amazon.research.service;
 
 import cn.iocoder.yudao.module.amazon.research.dal.dataobject.AmazonSupplierMatchDO;
 import cn.iocoder.yudao.module.amazon.research.dal.mysql.AmazonSupplierMatchMapper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

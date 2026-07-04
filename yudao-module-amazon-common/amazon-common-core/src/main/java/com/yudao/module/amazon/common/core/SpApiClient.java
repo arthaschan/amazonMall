@@ -40,22 +40,8 @@ import java.util.stream.Collectors;
  *   <li><strong>Request/response logging</strong> -- logs all requests at
  *       DEBUG level and errors at WARN/ERROR level.</li>
  *   <li><strong>Error handling</strong> -- maps HTTP errors to the
- *       {@link SpApiException} sealed hierarchy.</li>
+ *       {@link SpApiException} hierarchy.</li>
  * </ol>
- *
- * <h3>Usage</h3>
- * <pre>{@code
- * // GET request
- * JsonNode orders = client.get(sellerId, "us-east-1",
- *         "/orders/v0/orders", Map.of("MarketplaceIds", "ATVPDKIKX0DER"));
- *
- * // POST request with body
- * JsonNode report = client.post(sellerId, "us-east-1",
- *         "/reports/2021-06-30/reports", reportRequest);
- *
- * // DELETE request
- * client.delete(sellerId, "us-east-1", "/listings/2021-08-01/items/ABC123");
- * }</pre>
  */
 @Component
 public class SpApiClient {
@@ -99,37 +85,47 @@ public class SpApiClient {
         this.httpClient = buildHttpClient();
     }
 
-    // ── Response record ───────────────────────────────────────────────────
+    // ── Response wrapper ──────────────────────────────────────────────────
 
     /**
      * Immutable wrapper for an SP-API response.
-     *
-     * @param statusCode the HTTP status code
-     * @param headers    response headers (lowercase keys)
-     * @param body       raw response body string
-     * @param jsonBody   parsed JSON body (null if body is not JSON)
-     * @param requestId  the {@code x-amzn-RequestId} header value
      */
-    public record SpApiResponse(
-            int statusCode,
-            Map<String, String> headers,
-            String body,
-            JsonNode jsonBody,
-            String requestId
-    ) {
+    public static class SpApiResponse {
+
+        private final int statusCode;
+        private final Map<String, String> headers;
+        private final String body;
+        private final JsonNode jsonBody;
+        private final String requestId;
+
+        public SpApiResponse(int statusCode, Map<String, String> headers,
+                             String body, JsonNode jsonBody, String requestId) {
+            this.statusCode = statusCode;
+            this.headers = headers;
+            this.body = body;
+            this.jsonBody = jsonBody;
+            this.requestId = requestId;
+        }
+
         /** Whether the response indicates success (2xx). */
         public boolean isSuccessful() {
             return statusCode >= 200 && statusCode < 300;
         }
 
+        public int getStatusCode()      { return statusCode; }
+        public Map<String, String> getHeaders() { return headers; }
+        public String getBody()          { return body; }
+        public JsonNode getJsonBody()    { return jsonBody; }
+        public String getRequestId()     { return requestId; }
+
         /** Extracts error message from the response body (best-effort). */
         public String getErrorMessage() {
-            if (body == null || body.isBlank()) {
+            if (body == null || body.trim().isEmpty()) {
                 return "HTTP " + statusCode;
             }
             // Try to extract from JSON error structure
             if (jsonBody != null && jsonBody.has("errors") && jsonBody.get("errors").isArray()) {
-                var errors = jsonBody.get("errors");
+                JsonNode errors = jsonBody.get("errors");
                 if (!errors.isEmpty() && errors.get(0).has("message")) {
                     return errors.get(0).get("message").asText();
                 }
@@ -145,83 +141,47 @@ public class SpApiClient {
 
     /**
      * Sends a GET request to the SP-API.
-     *
-     * @param sellerId    the seller identifier (for token lookup and rate limiting)
-     * @param awsRegion   the AWS region (e.g. "us-east-1")
-     * @param path        the API path (e.g. "/orders/v0/orders")
-     * @param queryParams query string parameters (nullable)
-     * @return the parsed JSON response body
      */
     public JsonNode get(String sellerId, String awsRegion, String path,
                         Map<String, String> queryParams) {
         return executeWithRetry(sellerId, awsRegion, "GET", path,
-                queryParams, null).jsonBody();
+                queryParams, null).getJsonBody();
     }
 
     /**
      * Sends a POST request to the SP-API.
-     *
-     * @param sellerId  the seller identifier
-     * @param awsRegion the AWS region
-     * @param path      the API path
-     * @param body      the request body (will be JSON-serialised)
-     * @return the parsed JSON response body
      */
     public JsonNode post(String sellerId, String awsRegion, String path, Object body) {
         return executeWithRetry(sellerId, awsRegion, "POST", path,
-                null, body).jsonBody();
+                null, body).getJsonBody();
     }
 
     /**
      * Sends a PUT request to the SP-API.
-     *
-     * @param sellerId  the seller identifier
-     * @param awsRegion the AWS region
-     * @param path      the API path
-     * @param body      the request body
-     * @return the parsed JSON response body
      */
     public JsonNode put(String sellerId, String awsRegion, String path, Object body) {
         return executeWithRetry(sellerId, awsRegion, "PUT", path,
-                null, body).jsonBody();
+                null, body).getJsonBody();
     }
 
     /**
      * Sends a DELETE request to the SP-API.
-     *
-     * @param sellerId  the seller identifier
-     * @param awsRegion the AWS region
-     * @param path      the API path
-     * @return the parsed JSON response body
      */
     public JsonNode delete(String sellerId, String awsRegion, String path) {
         return executeWithRetry(sellerId, awsRegion, "DELETE", path,
-                null, null).jsonBody();
+                null, null).getJsonBody();
     }
 
     /**
      * Sends a PATCH request to the SP-API.
-     *
-     * @param sellerId  the seller identifier
-     * @param awsRegion the AWS region
-     * @param path      the API path
-     * @param body      the request body
-     * @return the parsed JSON response body
      */
     public JsonNode patch(String sellerId, String awsRegion, String path, Object body) {
         return executeWithRetry(sellerId, awsRegion, "PATCH", path,
-                null, body).jsonBody();
+                null, body).getJsonBody();
     }
 
     /**
      * Sends a GET request and returns the full response (including headers).
-     * Useful for callers that need to inspect rate-limit headers or pagination tokens.
-     *
-     * @param sellerId    the seller identifier
-     * @param awsRegion   the AWS region
-     * @param path        the API path
-     * @param queryParams query string parameters (nullable)
-     * @return the full response wrapper
      */
     public SpApiResponse getFullResponse(String sellerId, String awsRegion, String path,
                                           Map<String, String> queryParams) {
@@ -231,9 +191,7 @@ public class SpApiClient {
     // ── Core execution with retry ─────────────────────────────────────────
 
     /**
-     * Executes the request with retry logic. This is the central method
-     * that coordinates rate limiting, token injection, signing, and
-     * error handling.
+     * Executes the request with retry logic.
      */
     private SpApiResponse executeWithRetry(String sellerId, String awsRegion,
                                             String method, String path,
@@ -251,7 +209,7 @@ public class SpApiClient {
                         sellerId, awsRegion, endpoint, method, path, queryParams, requestBody);
 
                 // Update dynamic rate limits from response header
-                String rateLimitHeader = response.headers().get("x-amzn-ratelimit-limit");
+                String rateLimitHeader = response.getHeaders().get("x-amzn-ratelimit-limit");
                 rateLimiter.updateFromResponseHeader(path, rateLimitHeader);
 
                 return response;
@@ -259,12 +217,14 @@ public class SpApiClient {
             } catch (SpApiException ex) {
                 if (!retryPolicy.isRetryable(ex) || !retryPolicy.shouldRetry(attempt)) {
                     log.error("SP-API call failed (non-retryable or max retries): {} {} -> {}",
-                            method, path, ex);
+                            method, path, ex.getMessage());
                     throw ex;
                 }
 
-                long retryAfter = (ex instanceof SpApiException.SpApiRateLimitException rle)
-                        ? rle.getRetryAfterSeconds() : -1;
+                long retryAfter = -1;
+                if (ex instanceof SpApiException.SpApiRateLimitException) {
+                    retryAfter = ((SpApiException.SpApiRateLimitException) ex).getRetryAfterSeconds();
+                }
 
                 log.warn("SP-API call {} {} failed (attempt {}/{}), retrying: {}",
                         method, path, attempt + 1, retryPolicy.getMaxRetries(), ex.getMessage());
@@ -313,27 +273,38 @@ public class SpApiClient {
         Request.Builder requestBuilder = new Request.Builder().url(urlStr);
 
         // Add all signed headers
-        signedHeaders.forEach(requestBuilder::addHeader);
+        for (Map.Entry<String, String> entry : signedHeaders.entrySet()) {
+            requestBuilder.addHeader(entry.getKey(), entry.getValue());
+        }
 
         // Set the request method and body
         RequestBody okBody = null;
         if (bodyString != null) {
-            okBody = RequestBody.create(bodyString, JSON_MEDIA_TYPE);
+            okBody = RequestBody.create(JSON_MEDIA_TYPE, bodyString);
         }
 
         switch (method) {
-            case "GET"    -> requestBuilder.get();
-            case "POST"   -> requestBuilder.post(okBody != null ? okBody : RequestBody.create("", JSON_MEDIA_TYPE));
-            case "PUT"    -> requestBuilder.put(okBody != null ? okBody : RequestBody.create("", JSON_MEDIA_TYPE));
-            case "DELETE" -> {
+            case "GET":
+                requestBuilder.get();
+                break;
+            case "POST":
+                requestBuilder.post(okBody != null ? okBody : RequestBody.create(JSON_MEDIA_TYPE, ""));
+                break;
+            case "PUT":
+                requestBuilder.put(okBody != null ? okBody : RequestBody.create(JSON_MEDIA_TYPE, ""));
+                break;
+            case "DELETE":
                 if (okBody != null) {
                     requestBuilder.delete(okBody);
                 } else {
                     requestBuilder.delete();
                 }
-            }
-            case "PATCH"  -> requestBuilder.patch(okBody != null ? okBody : RequestBody.create("", JSON_MEDIA_TYPE));
-            default -> throw new IllegalArgumentException("Unsupported HTTP method: " + method);
+                break;
+            case "PATCH":
+                requestBuilder.patch(okBody != null ? okBody : RequestBody.create(JSON_MEDIA_TYPE, ""));
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported HTTP method: " + method);
         }
 
         log.debug("SP-API {} {} (seller={}, region={})", method, path, sellerId, awsRegion);
@@ -345,7 +316,7 @@ public class SpApiClient {
             throw e;
         } catch (IOException e) {
             throw new SpApiException.SpApiClientException(
-                    "I/O error calling SP-API [%s %s]: %s".formatted(method, path, e.getMessage()),
+                    String.format("I/O error calling SP-API [%s %s]: %s", method, path, e.getMessage()),
                     -1, null, null, e);
         }
     }
@@ -360,44 +331,42 @@ public class SpApiClient {
                                                      String amzDate, String dateStamp,
                                                      String awsRegion, String accessToken,
                                                      String payloadHash, String bodyString) {
-        TreeMap<String, String> headers = new TreeMap<>();
+        TreeMap<String, String> headers = new TreeMap<String, String>();
         headers.put("host", uri.getHost());
         headers.put("x-amz-access-token", accessToken);
         headers.put("x-amz-date", amzDate);
         headers.put("x-amz-content-sha256", payloadHash);
-        headers.put("user-agent", "AmazonOpsAI/1.0 (Language=Java/17)");
+        headers.put("user-agent", "AmazonOpsAI/1.0 (Language=Java/8)");
 
         // Build canonical headers string (sorted, lowercase keys)
-        String canonicalHeaders = headers.entrySet().stream()
-                .map(e -> e.getKey().toLowerCase() + ":" + e.getValue().trim())
-                .collect(Collectors.joining("\n")) + "\n";
+        StringBuilder canonicalHeadersSb = new StringBuilder();
+        for (Map.Entry<String, String> e : headers.entrySet()) {
+            canonicalHeadersSb.append(e.getKey().toLowerCase())
+                    .append(":").append(e.getValue().trim()).append("\n");
+        }
+        String canonicalHeaders = canonicalHeadersSb.toString() + "\n";
 
-        String signedHeadersList = headers.keySet().stream()
-                .map(String::toLowerCase)
-                .collect(Collectors.joining(";"));
+        StringBuilder signedHeadersSb = new StringBuilder();
+        boolean first = true;
+        for (String key : headers.keySet()) {
+            if (!first) {
+                signedHeadersSb.append(";");
+            }
+            signedHeadersSb.append(key.toLowerCase());
+            first = false;
+        }
+        String signedHeadersList = signedHeadersSb.toString();
 
         // Canonical request
         String canonicalUri = uri.getPath();
         String canonicalQuery = uri.getQuery() != null ? uri.getQuery() : "";
-        String canonicalRequest = """
-                %s
-                %s
-                %s
-                %s
-                %s
-                %s""".formatted(
-                method, canonicalUri, canonicalQuery,
-                canonicalHeaders, signedHeadersList, payloadHash);
+        String canonicalRequest = method + "\n" + canonicalUri + "\n" + canonicalQuery + "\n"
+                + canonicalHeaders + "\n" + signedHeadersList + "\n" + payloadHash;
 
         // String to sign
-        String credentialScope = "%s/%s/%s/aws4_request"
-                .formatted(dateStamp, awsRegion, SERVICE_NAME);
-        String stringToSign = """
-                %s
-                %s
-                %s
-                %s""".formatted(
-                AWS4_HMAC_SHA256, amzDate, credentialScope, sha256Hex(canonicalRequest));
+        String credentialScope = dateStamp + "/" + awsRegion + "/" + SERVICE_NAME + "/aws4_request";
+        String stringToSign = AWS4_HMAC_SHA256 + "\n" + amzDate + "\n"
+                + credentialScope + "\n" + sha256Hex(canonicalRequest);
 
         // Signing key derivation
         byte[] signingKey = deriveSigningKey(dateStamp, awsRegion);
@@ -406,10 +375,9 @@ public class SpApiClient {
         String signature = hmacSha256Hex(signingKey, stringToSign);
 
         // Authorization header
-        String authorization = "%s Credential=%s/%s, SignedHeaders=%s, Signature=%s"
-                .formatted(AWS4_HMAC_SHA256,
-                        properties.getAwsAccessKeyId(), credentialScope,
-                        signedHeadersList, signature);
+        String authorization = AWS4_HMAC_SHA256 + " Credential=" + properties.getAwsAccessKeyId()
+                + "/" + credentialScope + ", SignedHeaders=" + signedHeadersList
+                + ", Signature=" + signature;
 
         headers.put("authorization", authorization);
 
@@ -421,8 +389,7 @@ public class SpApiClient {
     }
 
     /**
-     * Derives the AWS Signature V4 signing key:
-     * {@code HMAC("AWS4" + secretKey, date) -> HMAC(kDate, region) -> HMAC(kRegion, service) -> HMAC(kService, "aws4_request")}
+     * Derives the AWS Signature V4 signing key.
      */
     private byte[] deriveSigningKey(String dateStamp, String region) {
         byte[] kSecret = ("AWS4" + properties.getAwsSecretAccessKey())
@@ -436,7 +403,7 @@ public class SpApiClient {
     // ── Response handling ─────────────────────────────────────────────────
 
     /**
-     * Parses the OkHttp response into our {@link SpApiResponse} record,
+     * Parses the OkHttp response into our {@link SpApiResponse},
      * throwing the appropriate exception for error statuses.
      */
     private SpApiResponse parseResponse(Response response, String path) throws IOException {
@@ -444,7 +411,7 @@ public class SpApiClient {
         String requestId = response.header("x-amzn-RequestId");
 
         // Extract headers as a simple map (lowercase keys)
-        Map<String, String> responseHeaders = new LinkedHashMap<>();
+        Map<String, String> responseHeaders = new LinkedHashMap<String, String>();
         for (String name : response.headers().names()) {
             responseHeaders.put(name.toLowerCase(), response.header(name));
         }
@@ -459,7 +426,7 @@ public class SpApiClient {
 
         // Parse JSON body (best-effort)
         JsonNode jsonBody = null;
-        if (body != null && !body.isBlank()) {
+        if (body != null && !body.trim().isEmpty()) {
             try {
                 jsonBody = objectMapper.readTree(body);
             } catch (Exception e) {
@@ -478,7 +445,7 @@ public class SpApiClient {
      * Builds the shared OkHttpClient with timeouts and proxy support.
      */
     private OkHttpClient buildHttpClient() {
-        var builder = new OkHttpClient.Builder()
+        OkHttpClient.Builder builder = new OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS);
@@ -492,13 +459,17 @@ public class SpApiClient {
             builder.proxy(new java.net.Proxy(proxyType,
                     new java.net.InetSocketAddress(proxyConfig.getHost(), proxyConfig.getPort())));
 
-            if (proxyConfig.getUsername() != null && !proxyConfig.getUsername().isBlank()) {
-                builder.proxyAuthenticator((route, resp) -> {
-                    String credential = okhttp3.Credentials.basic(
-                            proxyConfig.getUsername(), proxyConfig.getPassword());
-                    return resp.request().newBuilder()
-                            .header("Proxy-Authorization", credential)
-                            .build();
+            String proxyUsername = proxyConfig.getUsername();
+            if (proxyUsername != null && !proxyUsername.trim().isEmpty()) {
+                builder.proxyAuthenticator(new Authenticator() {
+                    @Override
+                    public Request authenticate(Route route, Response resp) throws IOException {
+                        String credential = Credentials.basic(
+                                proxyConfig.getUsername(), proxyConfig.getPassword());
+                        return resp.request().newBuilder()
+                                .header("Proxy-Authorization", credential)
+                                .build();
+                    }
                 });
             }
         }
@@ -517,8 +488,7 @@ public class SpApiClient {
         }
         return params.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
-                .map(e -> "%s=%s".formatted(
-                        urlEncode(e.getKey()), urlEncode(e.getValue())))
+                .map(e -> String.format("%s=%s", urlEncode(e.getKey()), urlEncode(e.getValue())))
                 .collect(Collectors.joining("&"));
     }
 
@@ -529,8 +499,8 @@ public class SpApiClient {
         if (body == null) {
             return null;
         }
-        if (body instanceof String s) {
-            return s;
+        if (body instanceof String) {
+            return (String) body;
         }
         try {
             return objectMapper.writeValueAsString(body);
@@ -577,9 +547,13 @@ public class SpApiClient {
 
     /** URL-encodes a string (RFC 3986). */
     private static String urlEncode(String value) {
-        return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8)
-                .replace("+", "%20")
-                .replace("*", "%2A")
-                .replace("%7E", "~");
+        try {
+            return java.net.URLEncoder.encode(value, "UTF-8")
+                    .replace("+", "%20")
+                    .replace("*", "%2A")
+                    .replace("%7E", "~");
+        } catch (java.io.UnsupportedEncodingException e) {
+            throw new IllegalStateException("UTF-8 not available", e);
+        }
     }
 }

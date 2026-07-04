@@ -13,7 +13,7 @@ import cn.iocoder.yudao.module.amazon.shop.service.AmazonShopService;
 import com.yudao.module.amazon.common.core.AmazonCredentialEncryptor;
 import com.yudao.module.amazon.common.core.AmazonProperties;
 import com.yudao.module.amazon.common.core.SpApiTokenRefresher;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -198,7 +198,7 @@ public class AmazonShopServiceImpl implements AmazonShopService {
     public void refreshToken(Long id) {
         AmazonShopDO shop = validateShopExists(id);
 
-        if (shop.getRefreshToken() == null || shop.getRefreshToken().isBlank()) {
+        if (shop.getRefreshToken() == null || shop.getRefreshToken().trim().isEmpty()) {
             throw exception(SHOP_REFRESH_TOKEN_MISSING);
         }
 
@@ -227,7 +227,7 @@ public class AmazonShopServiceImpl implements AmazonShopService {
         updateDO.setStatus(AmazonShopStatusEnum.ENABLED.getStatus());
 
         // If a new refresh token was returned, update it too
-        if (tokenResponse.refreshToken() != null && !tokenResponse.refreshToken().isBlank()) {
+        if (tokenResponse.refreshToken() != null && !tokenResponse.refreshToken().trim().isEmpty()) {
             updateDO.setRefreshToken(credentialEncryptor.encrypt(tokenResponse.refreshToken()));
         }
 
@@ -252,7 +252,7 @@ public class AmazonShopServiceImpl implements AmazonShopService {
     @Override
     public String getDecryptedRefreshToken(Long id) {
         AmazonShopDO shop = validateShopExists(id);
-        if (shop.getRefreshToken() == null || shop.getRefreshToken().isBlank()) {
+        if (shop.getRefreshToken() == null || shop.getRefreshToken().trim().isEmpty()) {
             return null;
         }
         return credentialEncryptor.decrypt(shop.getRefreshToken());
@@ -261,7 +261,7 @@ public class AmazonShopServiceImpl implements AmazonShopService {
     @Override
     public String getDecryptedAccessToken(Long id) {
         AmazonShopDO shop = validateShopExists(id);
-        if (shop.getAccessToken() == null || shop.getAccessToken().isBlank()) {
+        if (shop.getAccessToken() == null || shop.getAccessToken().trim().isEmpty()) {
             return null;
         }
         return credentialEncryptor.decrypt(shop.getAccessToken());
@@ -285,13 +285,13 @@ public class AmazonShopServiceImpl implements AmazonShopService {
      */
     private void encryptCredentials(AmazonShopDO shop, String clientId,
                                      String clientSecret, String refreshToken) {
-        if (clientId != null && !clientId.isBlank()) {
+        if (clientId != null && !clientId.trim().isEmpty()) {
             shop.setClientId(credentialEncryptor.encrypt(clientId));
         }
-        if (clientSecret != null && !clientSecret.isBlank()) {
+        if (clientSecret != null && !clientSecret.trim().isEmpty()) {
             shop.setClientSecret(credentialEncryptor.encrypt(clientSecret));
         }
-        if (refreshToken != null && !refreshToken.isBlank()) {
+        if (refreshToken != null && !refreshToken.trim().isEmpty()) {
             shop.setRefreshToken(credentialEncryptor.encrypt(refreshToken));
         }
     }
@@ -326,18 +326,23 @@ public class AmazonShopServiceImpl implements AmazonShopService {
         if (marketplace == null) {
             return "sellercentral.amazon.com";
         }
-        return switch (marketplace.getRegion()) {
-            case "NA" -> "sellercentral.amazon.com";
-            case "EU" -> "sellercentral-europe.amazon.com";
-            case "FE" -> switch (marketplace.getCountryCode()) {
-                case "JP" -> "sellercentral.amazon.co.jp";
-                case "AU" -> "sellercentral.amazon.com.au";
-                case "IN" -> "sellercentral.amazon.in";
-                case "SG" -> "sellercentral.amazon.sg";
-                default -> "sellercentral.amazon.com";
-            };
-            default -> "sellercentral.amazon.com";
-        };
+        String region = marketplace.getRegion();
+        if ("EU".equals(region)) {
+            return "sellercentral-europe.amazon.com";
+        } else if ("FE".equals(region)) {
+            String cc = marketplace.getCountryCode();
+            if ("JP".equals(cc)) {
+                return "sellercentral.amazon.co.jp";
+            } else if ("AU".equals(cc)) {
+                return "sellercentral.amazon.com.au";
+            } else if ("IN".equals(cc)) {
+                return "sellercentral.amazon.in";
+            } else if ("SG".equals(cc)) {
+                return "sellercentral.amazon.sg";
+            }
+            return "sellercentral.amazon.com";
+        }
+        return "sellercentral.amazon.com";
     }
 
     private static String urlEncode(String value) {

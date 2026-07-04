@@ -10,7 +10,7 @@ import com.yudao.module.amazon.common.core.SpApiClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -36,34 +36,37 @@ public class InventorySyncServiceImpl implements InventorySyncService {
     private static final String INVENTORY_SUMMARIES_PATH = "/fba/inventory/v1/summaries";
 
     /** NA 区域 Marketplace ID 集合 */
-    private static final Set<String> NA_MARKETPLACES = Set.of(
-            "ATVPDKIKX0DER",   // US
-            "A2EUQ1WTGCTBG2",  // CA
-            "A1AM78C64UM0Y8",  // MX
-            "A2Q3Y263D00KWC"   // BR
-    );
+    private static final Set<String> NA_MARKETPLACES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    "ATVPDKIKX0DER",   // US
+                    "A2EUQ1WTGCTBG2",  // CA
+                    "A1AM78C64UM0Y8",  // MX
+                    "A2Q3Y263D00KWC"   // BR
+            )));
 
     /** EU 区域 Marketplace ID 集合 */
-    private static final Set<String> EU_MARKETPLACES = Set.of(
-            "A1F83G8C2ARO7P",  // UK
-            "A1PA6795UKMFR9",  // DE
-            "A13V1IB3VIYZZH",  // FR
-            "APJ6JRA9NG5V4",   // IT
-            "A1RKKUPIHCS9HS",  // ES
-            "A1805IZSGTT6HS",  // NL
-            "A2NODRKZP88ZB9",  // SE
-            "A1C3SOZRARQ6R3",  // PL
-            "AMEN7PMS3EDWL",   // BE
-            "A33AVAJ2PDY3EV"   // TR
-    );
+    private static final Set<String> EU_MARKETPLACES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    "A1F83G8C2ARO7P",  // UK
+                    "A1PA6795UKMFR9",  // DE
+                    "A13V1IB3VIYZZH",  // FR
+                    "APJ6JRA9NG5V4",   // IT
+                    "A1RKKUPIHCS9HS",  // ES
+                    "A1805IZSGTT6HS",  // NL
+                    "A2NODRKZP88ZB9",  // SE
+                    "A1C3SOZRARQ6R3",  // PL
+                    "AMEN7PMS3EDWL",   // BE
+                    "A33AVAJ2PDY3EV"   // TR
+            )));
 
     /** FE 区域 Marketplace ID 集合 */
-    private static final Set<String> FE_MARKETPLACES = Set.of(
-            "A1VC38T7YXB528",  // JP
-            "A39IBJ37TR1ESG",  // AU
-            "A21TJRUUN4KGV",   // IN
-            "A19VAU5U5O7RUS"   // SG
-    );
+    private static final Set<String> FE_MARKETPLACES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    "A1VC38T7YXB528",  // JP
+                    "A39IBJ37TR1ESG",  // AU
+                    "A21TJRUUN4KGV",   // IN
+                    "A19VAU5U5O7RUS"   // SG
+            )));
 
     @Resource
     private SpApiClient spApiClient;
