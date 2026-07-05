@@ -8,10 +8,24 @@ import cn.iocoder.yudao.module.amazon.shop.service.AmazonShopService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.yudao.module.amazon.common.core.SpApiClient;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPInputStream;
 
 /**
  * 评论同步服务实现。
@@ -41,6 +55,18 @@ public class ReviewSyncServiceImpl implements ReviewSyncService {
     private static final int MAX_POLL_ATTEMPTS = 30;
     /** 轮询间隔（毫秒）。 */
     private static final long POLL_INTERVAL_MS = 10_000L;
+    /** 批量入库大小 */
+    private static final int BATCH_SIZE = 500;
+
+    /**
+     * 专用于下载预签名 S3 文档的 HTTP 客户端。
+     * <p>预签名 URL 已包含鉴权信息，无需 AWS Sig V4 签名。</p>
+     */
+    private static final OkHttpClient DOWNLOAD_CLIENT = new OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.MINUTES)
+            .followRedirects(true)
+            .build();
 
     @Override
     public void syncReviews(Long shopId, String marketplaceId) {
@@ -102,42 +128,189 @@ public class ReviewSyncServiceImpl implements ReviewSyncService {
         }
 
         String downloadUrl = documentResponse.get("url").asText();
-        log.info("[ReviewSync] 报告文档下载链接已获取 documentId={}, shopId={}", reportDocumentId, shopId);
+        String compressionAlg = documentResponse.path("compressionAlgorithm").asText(null);
+        log.info("[ReviewSync] 报告文档下载链接已获取 documentId={}, shopId={}, compression={}",
+                reportDocumentId, shopId, compressionAlg);
 
         // ── Step 4: 下载并解析报告文档 ──────────────────────────────────────
-        // TODO: Download and parse report document
-        // 报告文档通常为 TSV/CSV 格式，需要额外的 HTTP 客户端下载文件并逐行解析。
-        // 下载 URL 是预签名的 S3 链接，有效期约 5 分钟。
-        // 解析流程：
-        //   1. 通过 OkHttpClient 或 HttpClient GET downloadUrl 下载文件流
-        //   2. 按 TSV 分隔符 (\t) 逐行读取
-        //   3. 跳过表头行，将每行映射为 AmazonReviewDO：
-        //      - review_id -> reviewId
-        //      - asin -> asin
-        //      - reviewer_name -> reviewerName
-        //      - rating (1-5) -> rating
-        //      - review_title -> title
-        //      - review_body -> body
-        //      - review_date -> reviewDate (LocalDateTime)
-        //      - verified_purchase (true/false) -> verifiedPurchase
-        //   4. 设置 shopId, tenantId
-        //   5. 调用 amazonReviewMapper.insertOrUpdate(reviewDO) 持久化
-        //
-        // 示例代码结构：
-        // int totalSynced = 0;
-        // try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-        //         httpClient.newCall(new Request.Builder().url(downloadUrl).build()).execute()
-        //                 .body().byteStream(), StandardCharsets.UTF_8))) {
-        //     String headerLine = reader.readLine(); // 跳过表头
-        //     String line;
-        //     while ((line = reader.readLine()) != null) {
-        //         String[] fields = line.split("\t", -1);
-        //         AmazonReviewDO review = mapReviewFromTsv(fields, shop);
-        //         amazonReviewMapper.insertOrUpdate(review);
-        //         totalSynced++;
-        //     }
-        // }
-        log.warn("[ReviewSync] 报告文档下载和解析尚未实现 downloadUrl={}, shopId={}", downloadUrl, shopId);
+        int totalSynced = downloadAndParseReportDocument(downloadUrl, compressionAlg, shop);
+        log.info("[ReviewSync] 评论同步完成 shopId={}, marketplaceId={}, totalSynced={}",
+                shopId, marketplaceId, totalSynced);
+    }
+
+    /**
+     * 下载并解析报告文档。
+     * <p>通过 OkHttp GET 预签名 S3 URL 下载报告文件，
+     * 根据 compressionAlgorithm 决定是否需要 GZIP 解压，
+     * 然后按 TSV 格式逐行解析并批量入库。</p>
+     *
+     * @param downloadUrl     预签名下载链接
+     * @param compressionAlg  压缩算法（GZIP 或 null）
+     * @param shop            店铺信息
+     * @return 同步的评论总数
+     */
+    private int downloadAndParseReportDocument(String downloadUrl, String compressionAlg,
+                                                AmazonShopDO shop) {
+        Request request = new Request.Builder()
+                .url(downloadUrl)
+                .get()
+                .build();
+
+        Response response;
+        try {
+            response = DOWNLOAD_CLIENT.newCall(request).execute();
+        } catch (IOException e) {
+            log.error("[ReviewSync] 下载报告文档失败 url={}", downloadUrl, e);
+            throw new RuntimeException("Failed to download report document: " + e.getMessage(), e);
+        }
+
+        try {
+            ResponseBody responseBody = response.body();
+            if (!response.isSuccessful() || responseBody == null) {
+                String errorMsg = String.format(
+                        "Report document download failed: HTTP %d", response.code());
+                log.error("[ReviewSync] {}", errorMsg);
+                throw new RuntimeException(errorMsg);
+            }
+
+            // 根据压缩算法包装输入流
+            InputStream rawStream = responseBody.byteStream();
+            InputStream dataStream;
+            if ("GZIP".equalsIgnoreCase(compressionAlg)) {
+                dataStream = new GZIPInputStream(rawStream);
+            } else {
+                dataStream = rawStream;
+            }
+
+            return parseTsvStream(dataStream, shop);
+
+        } catch (IOException e) {
+            log.error("[ReviewSync] 读取报告文档流失败", e);
+            throw new RuntimeException("Failed to read report document stream: " + e.getMessage(), e);
+        } finally {
+            response.close();
+        }
+    }
+
+    /**
+     * 解析 TSV 格式的报告数据流，将每行映射为 AmazonReviewDO 并批量入库。
+     * <p>采用表头驱动策略：读取第一行作为列名，构建列名到索引的映射，
+     * 确保不依赖固定的列顺序。</p>
+     *
+     * @param dataStream 输入流（已解压）
+     * @param shop       店铺信息
+     * @return 同步的评论总数
+     */
+    private int parseTsvStream(InputStream dataStream, AmazonShopDO shop) throws IOException {
+        BufferedReader reader = new BufferedReader(
+                new InputStreamReader(dataStream, StandardCharsets.UTF_8));
+
+        // 读取表头行，构建列名→索引映射
+        String headerLine = reader.readLine();
+        if (headerLine == null || headerLine.trim().isEmpty()) {
+            log.warn("[ReviewSync] 报告文档为空，无数据行");
+            return 0;
+        }
+
+        String[] headers = headerLine.split("\t", -1);
+        Map<String, Integer> columnIndex = buildColumnIndex(headers);
+        log.info("[ReviewSync] TSV 表头解析完成, columns={}, columnCount={}", Arrays.asList(headers), headers.length);
+
+        int totalSynced = 0;
+        int totalErrors = 0;
+        List<AmazonReviewDO> batch = new ArrayList<AmazonReviewDO>(BATCH_SIZE);
+
+        String line;
+        int lineNum = 1;
+        while ((line = reader.readLine()) != null) {
+            lineNum++;
+            if (line.trim().isEmpty()) {
+                continue;
+            }
+
+            String[] fields = line.split("\t", -1);
+
+            try {
+                AmazonReviewDO review = mapReviewFromTsv(fields, columnIndex, shop);
+                if (review.getReviewId() == null || review.getReviewId().trim().isEmpty()) {
+                    log.warn("[ReviewSync] 跳过缺少 review_id 的行 lineNum={}", lineNum);
+                    totalErrors++;
+                    continue;
+                }
+                batch.add(review);
+
+                // 达到批量大小时执行入库
+                if (batch.size() >= BATCH_SIZE) {
+                    persistBatch(batch);
+                    totalSynced += batch.size();
+                    log.info("[ReviewSync] 批量入库完成, batchSize={}, totalSynced={}",
+                            batch.size(), totalSynced);
+                    batch.clear();
+                }
+            } catch (Exception e) {
+                totalErrors++;
+                log.warn("[ReviewSync] 解析行失败 lineNum={}, error={}", lineNum, e.getMessage());
+            }
+        }
+
+        // 处理最后一批
+        if (!batch.isEmpty()) {
+            persistBatch(batch);
+            totalSynced += batch.size();
+            log.info("[ReviewSync] 最终批量入库 batchSize={}, totalSynced={}",
+                    batch.size(), totalSynced);
+            batch.clear();
+        }
+
+        if (totalErrors > 0) {
+            log.warn("[ReviewSync] 解析完成, 共 {} 行出错 totalSynced={}, totalErrors={}",
+                    lineNum - 1, totalSynced, totalErrors);
+        }
+
+        return totalSynced;
+    }
+
+    /**
+     * 构建列名到索引的映射表。
+     * <p>列名统一转为小写并去除前后空白，以便后续不区分大小写查找。</p>
+     */
+    private Map<String, Integer> buildColumnIndex(String[] headers) {
+        Map<String, Integer> index = new HashMap<String, Integer>(headers.length);
+        for (int i = 0; i < headers.length; i++) {
+            index.put(headers[i].trim().toLowerCase(), i);
+        }
+        return index;
+    }
+
+    /**
+     * 持久化一批评论记录。
+     * <p>使用 MyBatis Plus 的 insertOrUpdate 逐条写入，
+     * 以 review_id 作为唯一键实现幂等同步。</p>
+     */
+    private void persistBatch(List<AmazonReviewDO> batch) {
+        for (AmazonReviewDO review : batch) {
+            try {
+                amazonReviewMapper.insert(review);
+            } catch (Exception e) {
+                // 如果 insert 失败（可能是重复 review_id），尝试 update
+                if (e.getMessage() != null && e.getMessage().contains("Duplicate")) {
+                    try {
+                        AmazonReviewDO existing = amazonReviewMapper.selectOne(
+                                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<AmazonReviewDO>()
+                                        .eq(AmazonReviewDO::getReviewId, review.getReviewId())
+                                        .last("LIMIT 1"));
+                        if (existing != null) {
+                            review.setId(existing.getId());
+                            amazonReviewMapper.updateById(review);
+                        }
+                    } catch (Exception updateEx) {
+                        log.warn("[ReviewSync] 更新已有评论失败 reviewId={}", review.getReviewId(), updateEx);
+                    }
+                } else {
+                    log.warn("[ReviewSync] 入库评论失败 reviewId={}", review.getReviewId(), e);
+                }
+            }
+        }
     }
 
     /**
@@ -204,29 +377,54 @@ public class ReviewSyncServiceImpl implements ReviewSyncService {
     }
 
     /**
-     * 将 TSV 报告行映射为 AmazonReviewDO（供 Step 4 实现时调用）。
+     * 基于表头索引将 TSV 行映射为 AmazonReviewDO。
+     * <p>通过列名（小写）查找列索引，兼容 Amazon 报告列顺序变化。</p>
      *
-     * @param fields TSV 行拆分后的字段数组
-     * @param shop   店铺信息
+     * <p>GET_MERCHANT_REVIEWS_ALL_DATA 常见列名：
+     * review-id, marketplace, product-asin, reviewer-name, rating,
+     * review-title, review-body, review-date, verified-purchase,
+     * helpful-votes</p>
+     *
+     * @param fields      TSV 行拆分后的字段数组
+     * @param columnIndex 列名→索引映射（来自 buildColumnIndex）
+     * @param shop        店铺信息
      * @return 映射后的评论 DO
      */
-    @SuppressWarnings("unused")
-    private AmazonReviewDO mapReviewFromTsv(String[] fields, AmazonShopDO shop) {
+    private AmazonReviewDO mapReviewFromTsv(String[] fields, Map<String, Integer> columnIndex,
+                                             AmazonShopDO shop) {
         AmazonReviewDO review = new AmazonReviewDO();
         review.setShopId(shop.getId());
         review.setTenantId(shop.getTenantId());
 
-        // TSV 列顺序取决于报告定义，以下为常见映射（需根据实际表头调整）
-        if (fields.length > 0) review.setReviewId(fields[0]);
-        if (fields.length > 1) review.setAsin(fields[1]);
-        if (fields.length > 2) review.setReviewerName(fields[2]);
-        if (fields.length > 3) review.setRating(parseIntSafe(fields[3]));
-        if (fields.length > 4) review.setTitle(fields[4]);
-        if (fields.length > 5) review.setBody(fields[5]);
-        if (fields.length > 6) review.setReviewDate(parseDateTimeSafe(fields[6]));
-        if (fields.length > 7) review.setVerifiedPurchase(Boolean.parseBoolean(fields[7]));
+        review.setReviewId(getField(fields, columnIndex, "review-id"));
+        review.setAsin(getField(fields, columnIndex, "product-asin"));
+        review.setReviewerName(getField(fields, columnIndex, "reviewer-name"));
+        review.setRating(parseIntSafe(getField(fields, columnIndex, "rating")));
+        review.setTitle(getField(fields, columnIndex, "review-title"));
+        review.setBody(getField(fields, columnIndex, "review-body"));
+        review.setReviewDate(parseDateTimeSafe(getField(fields, columnIndex, "review-date")));
+        review.setVerifiedPurchase(parseBooleanSafe(getField(fields, columnIndex, "verified-purchase")));
+        review.setHelpfulVotes(parseIntSafe(getField(fields, columnIndex, "helpful-votes")));
 
         return review;
+    }
+
+    /**
+     * 根据列名从字段数组中安全取值。
+     *
+     * @param fields      字段数组
+     * @param columnIndex 列名→索引映射
+     * @param columnName  列名（小写）
+     * @return 字段值，不存在时返回 null
+     */
+    private static String getField(String[] fields, Map<String, Integer> columnIndex,
+                                    String columnName) {
+        Integer idx = columnIndex.get(columnName);
+        if (idx == null || idx >= fields.length) {
+            return null;
+        }
+        String value = fields[idx];
+        return (value != null && !value.trim().isEmpty()) ? value.trim() : null;
     }
 
     private static Integer parseIntSafe(String value) {
@@ -237,15 +435,26 @@ public class ReviewSyncServiceImpl implements ReviewSyncService {
         }
     }
 
-    private static java.time.LocalDateTime parseDateTimeSafe(String value) {
+    private static Boolean parseBooleanSafe(String value) {
+        if (value == null || value.trim().isEmpty()) return null;
+        String normalized = value.trim().toLowerCase();
+        if ("yes".equals(normalized) || "true".equals(normalized) || "1".equals(normalized)) {
+            return Boolean.TRUE;
+        }
+        if ("no".equals(normalized) || "false".equals(normalized) || "0".equals(normalized)) {
+            return Boolean.FALSE;
+        }
+        return null;
+    }
+
+    private static LocalDateTime parseDateTimeSafe(String value) {
         if (value == null || value.trim().isEmpty()) return null;
         try {
-            return java.time.LocalDateTime.parse(value.trim(),
-                    java.time.format.DateTimeFormatter.ISO_DATE_TIME);
+            return LocalDateTime.parse(value.trim(), DateTimeFormatter.ISO_DATE_TIME);
         } catch (Exception e) {
             try {
-                return java.time.LocalDate.parse(value.trim(),
-                        java.time.format.DateTimeFormatter.ISO_DATE).atStartOfDay();
+                return LocalDate.parse(value.trim(),
+                        DateTimeFormatter.ISO_DATE).atStartOfDay();
             } catch (Exception e2) {
                 return null;
             }
