@@ -10,11 +10,13 @@ import cn.iocoder.yudao.module.amazon.shop.dal.mysql.AmazonShopMapper;
 import cn.iocoder.yudao.module.amazon.shop.enums.AmazonMarketplaceEnum;
 import cn.iocoder.yudao.module.amazon.shop.enums.AmazonShopStatusEnum;
 import cn.iocoder.yudao.module.amazon.shop.service.AmazonShopService;
+import cn.iocoder.yudao.module.amazon.common.sync.ShopSyncTriggeredEvent;
 import com.yudao.module.amazon.common.core.AmazonCredentialEncryptor;
 import com.yudao.module.amazon.common.core.AmazonProperties;
 import com.yudao.module.amazon.common.core.SpApiTokenRefresher;
 import javax.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
@@ -54,6 +56,9 @@ public class AmazonShopServiceImpl implements AmazonShopService {
 
     @Resource
     private SpApiTokenRefresher tokenRefresher;
+
+    @Resource
+    private ApplicationEventPublisher eventPublisher;
 
     // ── CRUD ──────────────────────────────────────────────────────────────
 
@@ -243,10 +248,15 @@ public class AmazonShopServiceImpl implements AmazonShopService {
             throw exception(SHOP_NOT_ENABLED);
         }
 
-        // TODO: Integrate with the data sync module (M3 - amazon-common-sync)
-        // This should trigger async sync tasks for orders, products, inventory, etc.
-        log.info("Data sync triggered for shop [id={}, marketplace={}, seller={}]",
+        log.info("[syncShopData] 发布店铺数据同步事件 shopId={}, marketplaceId={}, sellerId={}",
                 id, shop.getMarketplaceId(), shop.getSellerId());
+
+        // 发布 Spring 事件，各业务模块通过 @EventListener 监听并执行各自的同步逻辑
+        // (订单、商品、库存、评论、广告、FBA 货件等)
+        eventPublisher.publishEvent(new ShopSyncTriggeredEvent(
+                this, id, shop.getMarketplaceId(), shop.getSellerId()));
+
+        log.info("[syncShopData] 店铺数据同步事件已发布 shopId={}", id);
     }
 
     @Override

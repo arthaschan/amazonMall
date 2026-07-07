@@ -81,13 +81,13 @@ public class ListingSyncServiceImpl implements ListingSyncService {
                 throw new RuntimeException("SP-API catalog call failed: " + e.getMessage(), e);
             }
 
-            if (!response.isSuccessful() || response.jsonBody() == null) {
+            if (!response.isSuccessful() || response.getJsonBody() == null) {
                 log.error("[ListingSync] SP-API 返回错误 statusCode={}, error={}",
-                        response.statusCode(), response.getErrorMessage());
+                        response.getStatusCode(), response.getErrorMessage());
                 throw new RuntimeException("SP-API catalog call returned error: " + response.getErrorMessage());
             }
 
-            JsonNode root = response.jsonBody();
+            JsonNode root = response.getJsonBody();
             JsonNode items = root.path("items");
             if (!items.isArray()) {
                 log.warn("[ListingSync] 响应中缺少 items 数组 shopId={}, page={}", shopId, pageCount);

@@ -39,32 +39,32 @@ public class AiReviewAnalysisServiceImpl implements AiReviewAnalysisService {
         LinkedHashMap<String, Object> result = new LinkedHashMap<String, Object>();
 
         // 情感分布
-        long sentimentCount = reviews.stream();
+        Map<String, Long> sentimentCount = reviews.stream()
                 .filter(r -> r.getAiSentiment() != null)
                 .collect(Collectors.groupingBy(AmazonReviewDO::getAiSentiment, Collectors.counting()));
         result.put("sentimentDistribution", sentimentCount);
 
         // 高频主题
-        List<String> allTopics = reviews.stream();
+        Map<String, Long> allTopics = reviews.stream()
                 .filter(r -> r.getAiTopics() != null)
                 .flatMap(r -> r.getAiTopics().stream())
                 .collect(Collectors.groupingBy(t -> t, Collectors.counting()));
         result.put("topTopics", allTopics.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                .limit(10).collect(java.util.stream.Collectors.toList()));
+                .limit(10).collect(Collectors.toList()));
 
         // 痛点汇总
-        List<String> allPainPoints = reviews.stream();
+        List<String> allPainPoints = reviews.stream()
                 .filter(r -> r.getAiPainPoints() != null)
                 .flatMap(r -> r.getAiPainPoints().stream())
-                .distinct().collect(java.util.stream.Collectors.toList());
+                .distinct().collect(Collectors.toList());
         result.put("painPoints", allPainPoints);
 
         // 卖点汇总
-        List<String> allSellingPoints = reviews.stream();
+        List<String> allSellingPoints = reviews.stream()
                 .filter(r -> r.getAiSellingPoints() != null)
                 .flatMap(r -> r.getAiSellingPoints().stream())
-                .distinct().collect(java.util.stream.Collectors.toList());
+                .distinct().collect(Collectors.toList());
         result.put("sellingPoints", allSellingPoints);
 
         return result;

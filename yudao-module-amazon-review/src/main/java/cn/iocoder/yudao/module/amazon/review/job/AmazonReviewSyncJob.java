@@ -1,7 +1,7 @@
 package cn.iocoder.yudao.module.amazon.review.job;
 
 import cn.iocoder.yudao.module.amazon.common.sync.AbstractAmazonSyncJob;
-import cn.iocoder.yudao.module.amazon.review.service.ReviewService;
+import cn.iocoder.yudao.module.amazon.review.service.ReviewSyncService;
 import cn.iocoder.yudao.module.amazon.shop.dal.dataobject.AmazonShopDO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -23,7 +23,7 @@ import javax.annotation.Resource;
 public class AmazonReviewSyncJob extends AbstractAmazonSyncJob {
 
     @Resource
-    private ReviewService reviewService;
+    private ReviewSyncService reviewSyncService;
 
     @Override
     protected String getJobName() {
@@ -35,11 +35,8 @@ public class AmazonReviewSyncJob extends AbstractAmazonSyncJob {
         log.info("[doSync] 开始评论同步 | shopId={}, marketplace={}",
                 shop.getId(), shop.getMarketplaceId());
 
-        // TODO: 接入 SP-API 评论接口
-        // 1. 获取店铺下所有 ASIN 列表
-        // 2. 逐 ASIN 拉取评论数据
-        // 3. 持久化到 amazon_review 表
-        // 4. 触发 AI 情感分析 (低星评论生成 ReviewAlert)
+        reviewSyncService.syncReviews(shop.getId(), shop.getMarketplaceId());
+
         log.info("[doSync] 评论同步完成 | shopId={}", shop.getId());
     }
 

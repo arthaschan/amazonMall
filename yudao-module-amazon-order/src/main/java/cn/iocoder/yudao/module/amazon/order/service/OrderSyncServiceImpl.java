@@ -128,16 +128,16 @@ public class OrderSyncServiceImpl implements OrderSyncService {
                 break;
             }
 
-            if (!response.isSuccessful() || response.jsonBody() == null) {
+            if (!response.isSuccessful() || response.getJsonBody() == null) {
                 log.error("[OrderSync] SP-API 订单查询返回错误 statusCode={}, error={}",
-                        response.statusCode(), response.getErrorMessage());
+                        response.getStatusCode(), response.getErrorMessage());
                 break;
             }
 
-            JsonNode jsonBody = response.jsonBody();
+            JsonNode jsonBody = response.getJsonBody();
             JsonNode payload = jsonBody.get("payload");
             if (payload == null) {
-                log.warn("[OrderSync] 响应中缺少 payload 节点, requestId={}", response.requestId());
+                log.warn("[OrderSync] 响应中缺少 payload 节点, requestId={}", response.getRequestId());
                 break;
             }
 

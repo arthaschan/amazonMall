@@ -118,13 +118,13 @@ public class InventorySyncServiceImpl implements InventorySyncService {
                 break;
             }
 
-            if (!response.isSuccessful() || response.jsonBody() == null) {
+            if (!response.isSuccessful() || response.getJsonBody() == null) {
                 log.error("[InventorySync] SP-API 库存查询返回错误 statusCode={}, error={}",
-                        response.statusCode(), response.getErrorMessage());
+                        response.getStatusCode(), response.getErrorMessage());
                 break;
             }
 
-            JsonNode jsonBody = response.jsonBody();
+            JsonNode jsonBody = response.getJsonBody();
 
             // 解析分页 Token（在 pagination 节点下）
             JsonNode paginationNode = jsonBody.get("pagination");
@@ -138,7 +138,7 @@ public class InventorySyncServiceImpl implements InventorySyncService {
             // 解析库存汇总列表
             JsonNode payload = jsonBody.get("payload");
             if (payload == null) {
-                log.warn("[InventorySync] 响应中缺少 payload 节点, requestId={}", response.requestId());
+                log.warn("[InventorySync] 响应中缺少 payload 节点, requestId={}", response.getRequestId());
                 break;
             }
 
