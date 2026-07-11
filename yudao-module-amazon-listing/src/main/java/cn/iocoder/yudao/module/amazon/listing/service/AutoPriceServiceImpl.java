@@ -5,8 +5,13 @@ import cn.iocoder.yudao.module.amazon.listing.dal.dataobject.AmazonAutoPriceRule
 import cn.iocoder.yudao.module.amazon.listing.dal.dataobject.AmazonProductDO;
 import cn.iocoder.yudao.module.amazon.listing.dal.mysql.AmazonAutoPriceRuleMapper;
 import cn.iocoder.yudao.module.amazon.listing.dal.mysql.AmazonProductMapper;
+import cn.iocoder.yudao.module.amazon.shop.dal.dataobject.AmazonShopDO;
+import cn.iocoder.yudao.module.amazon.shop.service.AmazonShopService;
+import cn.iocoder.yudao.module.amazon.shop.enums.AmazonMarketplaceEnum;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.yudao.module.amazon.common.core.SpApiClient;
 import javax.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,7 +19,9 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 自动调价服务实现。
@@ -41,6 +48,12 @@ public class AutoPriceServiceImpl implements AutoPriceService {
 
     @Resource
     private AmazonProductMapper productMapper;
+
+    @Resource
+    private SpApiClient spApiClient;
+
+    @Resource
+    private AmazonShopService amazonShopService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -303,8 +316,13 @@ public class AutoPriceServiceImpl implements AutoPriceService {
         log.info("[AutoPrice] PRICE CHANGE: product [id={}, asin={}, sku={}], current={}, target={}, " +
                         "change={}% (SP-API PUT /listings/2021-08-01/items pending)",
                 product.getId(), product.getAsin(), product.getSku(), currentPrice, targetPrice, changePercent);
-        // TODO: call SP-API PUT /listings/2021-08-01/items to update price
-        return true;
+        boolean pushed = pushPriceToAmazon(product, targetPrice);
+        if (pushed) {
+            product.setPrice(targetPrice);
+            productMapper.updateById(product);
+            log.info("[AutoPrice] Price updated in DB for product [id={}, asin={}] to {}", product.getId(), product.getAsin(), targetPrice);
+        }
+        return pushed;
     }
 
     /**
@@ -331,6 +349,45 @@ public class AutoPriceServiceImpl implements AutoPriceService {
         log.info("[AutoPrice][BUY_BOX] productId={}, currentPrice={}, offsetAmount={}, targetPrice={}",
                 product.getId(), currentPrice, offsetAmount, targetPrice);
         return targetPrice;
+    }
+
+    // ========================= SP-API push =========================
+
+    private boolean pushPriceToAmazon(AmazonProductDO product, BigDecimal targetPrice) {
+        try {
+            AmazonShopDO shop = amazonShopService.getShopById(product.getShopId());
+            if (shop == null) {
+                log.warn("[AutoPrice] Shop not found for product [id={}]", product.getId());
+                return false;
+            }
+            String sellerId = shop.getSellerId();
+            AmazonMarketplaceEnum marketplace = AmazonMarketplaceEnum.ofMarketplaceId(product.getMarketplaceId());
+            if (marketplace == null) {
+                log.warn("[AutoPrice] Unknown marketplace for product [id={}]", product.getId());
+                return false;
+            }
+            String awsRegion = marketplace.getAwsRegion();
+
+            // Build request body
+            ObjectNode body = objectMapper.createObjectNode();
+            body.put("productType", "PRODUCT");
+            ObjectNode attributes = body.putObject("attributes");
+            ObjectNode purchasableOffer = attributes.putObject("purchasable_offer");
+            ObjectNode ourPrice = purchasableOffer.putObject("our_price");
+            ObjectNode schedule = ourPrice.putObject("schedule");
+            schedule.put("value", targetPrice.toPlainString());
+
+            String path = "/listings/2021-08-01/items/" + sellerId + "/" + product.getSku();
+            Map<String, String> queryParams = new HashMap<>();
+            queryParams.put("marketplaceIds", product.getMarketplaceId());
+
+            spApiClient.put(sellerId, awsRegion, path, queryParams, body);
+            log.info("[AutoPrice] Price pushed to Amazon for SKU={}, newPrice={}", product.getSku(), targetPrice);
+            return true;
+        } catch (Exception e) {
+            log.warn("[AutoPrice] Failed to push price for product [id={}]: {}", product.getId(), e.getMessage());
+            return false;
+        }
     }
 
     // ========================= JSON helpers =========================

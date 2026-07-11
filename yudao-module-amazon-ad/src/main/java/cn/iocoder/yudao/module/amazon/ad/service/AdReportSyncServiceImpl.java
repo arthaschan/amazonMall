@@ -8,12 +8,26 @@ import cn.iocoder.yudao.module.amazon.shop.dal.dataobject.AmazonShopDO;
 import cn.iocoder.yudao.module.amazon.shop.enums.AmazonMarketplaceEnum;
 import cn.iocoder.yudao.module.amazon.shop.service.AmazonShopService;
 import com.yudao.module.amazon.common.core.SpApiClient;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.zip.GZIPInputStream;
 
 /**
  * 广告报表同步服务实现。
@@ -49,130 +63,327 @@ public class AdReportSyncServiceImpl implements AdReportSyncService {
     /** Amazon Ads API base URL（生产环境）。 */
     private static final String ADS_API_BASE_URL = "https://advertising-api.amazon.com";
 
+    /** Amazon Ads API Client ID placeholder - replace with actual LWA Client ID from app registration. */
+    private static final String ADS_API_CLIENT_ID = "amzn1.application-oa2-client.xxx";
+
     /** 报告日期格式：yyyyMMdd。 */
     private static final DateTimeFormatter REPORT_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
+
+    /** OkHttpClient for Ads API HTTP calls. */
+    private static final OkHttpClient HTTP_CLIENT = new OkHttpClient();
+
+    /** JSON media type for request bodies. */
+    private static final MediaType JSON_MEDIA = MediaType.parse("application/json; charset=utf-8");
+
+    /** Jackson ObjectMapper for JSON parsing. */
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Override
     public void syncAdReports(Long shopId, String marketplaceId) {
         log.info("[AdReportSync] 开始同步广告报表 shopId={}, marketplaceId={}", shopId, marketplaceId);
 
-        // ── 1. 加载店铺信息 ─────────────────────────────────────────────────
         AmazonShopDO shop = amazonShopService.getShopById(shopId);
         if (shop == null) {
             log.error("[AdReportSync] 店铺不存在 shopId={}", shopId);
             throw new IllegalArgumentException("Shop not found: " + shopId);
         }
 
-        // ── 2. 解析 AWS Region（用于日志和后续扩展）──────────────────────────
         AmazonMarketplaceEnum marketplace = AmazonMarketplaceEnum.ofMarketplaceId(marketplaceId);
         if (marketplace == null) {
             log.error("[AdReportSync] 不支持的 marketplaceId={}", marketplaceId);
             throw new IllegalArgumentException("Unsupported marketplaceId: " + marketplaceId);
         }
-        String awsRegion = marketplace.getAwsRegion();
-        String sellerId = shop.getSellerId();
 
-        log.info("[AdReportSync] 店铺已加载 sellerId={}, region={}, countryCode={}",
-                sellerId, awsRegion, shop.getCountryCode());
+        // Get Ads API access token - check if available
+        String accessToken = amazonShopService.getDecryptedAccessToken(shopId);
+        if (accessToken == null || accessToken.isEmpty()) {
+            log.warn("[AdReportSync] Amazon Ads API OAuth2 token not configured for shopId={}, skipping sync", shopId);
+            return;
+        }
 
-        // ── 3. 警告：Ads API 需要独立 OAuth2 鉴权 ───────────────────────────
-        log.warn("[AdReportSync] Amazon Ads API requires separate OAuth2 flow - implementation pending. "
-                + "Ads API base URL: {}, SP-API client does not support this endpoint.", ADS_API_BASE_URL);
+        // Determine Ads API scope (profile ID) - try to fetch
+        String profileId = fetchAdsProfileId(accessToken, marketplace.getAwsRegion(), shop.getCountryCode());
+        if (profileId == null) {
+            log.warn("[AdReportSync] Could not determine Ads profile ID for shopId={}", shopId);
+            return;
+        }
 
-        // ── 以下为 Ads API 调用的完整步骤说明（待 Ads OAuth2 客户端实现后启用） ──
+        // Request report for last 7 days
+        LocalDate reportDate = LocalDate.now().minusDays(1);
+        String reportId = requestKeywordReport(accessToken, profileId, reportDate);
+        if (reportId == null) {
+            log.warn("[AdReportSync] Failed to request report for shopId={}", shopId);
+            return;
+        }
 
-        // Step 1: Get advertising profile ID
-        // GET https://advertising-api.amazon.com/v2/profiles
-        // Required Headers:
-        //   Amazon-Advertising-API-ClientId: {lwaClientId}
-        //   Authorization: Bearer {accessToken}
-        //
-        // Response: array of profile objects, select the one matching countryCode/marketplaceId
-        //   profile.id -> profileId (required for all subsequent API calls)
-        //   profile.countryCode -> country validation
-        //
-        // Persist as needed for subsequent calls:
-        //   String profileId = response[matchingIndex].id;
-        //   log.info("[AdReportSync] 获取到广告 profile profileId={}", profileId);
+        // Poll for report completion
+        String downloadUrl = pollReportStatus(accessToken, profileId, reportId);
+        if (downloadUrl == null) {
+            log.warn("[AdReportSync] Report not ready or failed for shopId={}", shopId);
+            return;
+        }
 
-        // Step 2: Request SP campaign keyword report
-        // POST https://advertising-api.amazon.com/v2/sp/reportKeywords
-        // Required Headers:
-        //   Amazon-Advertising-API-ClientId: {lwaClientId}
-        //   Authorization: Bearer {accessToken}
-        //   Amazon-Advertising-API-Scope: {profileId}
-        //   Content-Type: application/json
-        //
-        // Request Body:
-        //   {
-        //     "reportDate": "20260101",  // 报表日期 yyyyMMdd
-        //     "metrics": "impressions,clicks,cost,sales14d,attributedConversions14d,acos14d,roas14d,cpc,ctr"
-        //   }
-        //
-        // Response: { "reportId": "xxx", "recordType": "keywords", "status": "IN_PROGRESS", "statusDetails": "" }
-        //   String reportId = response.reportId;
-        //   log.info("[AdReportSync] 报表已提交 reportId={}", reportId);
-
-        // Step 3: Poll for report completion
-        // GET https://advertising-api.amazon.com/v2/reports/{reportId}
-        // Required Headers:
-        //   Amazon-Advertising-API-ClientId: {lwaClientId}
-        //   Authorization: Bearer {accessToken}
-        //   Amazon-Advertising-API-Scope: {profileId}
-        //
-        // Poll every 10s until status is SUCCESS or FAILURE (max 30 attempts)
-        // Response (SUCCESS):
-        //   { "reportId": "xxx", "status": "SUCCESS", "statusDetails": "",
-        //     "location": "https://adsapi-eu.amazon.com/v1/reports/xxx/document" }
-        //
-        // String reportUrl = response.location;  // 预签名 S3 下载链接
-        // log.info("[AdReportSync] 报表已生成 reportUrl={}", reportUrl);
-
-        // Step 4: Download and parse report (gzip JSON)
-        // GET {reportUrl}
-        // Response: gzip-compressed JSON array of report rows
-        //
-        // 解析流程：
-        //   1. 使用 OkHttpClient 下载并解压 gzip 流
-        //   2. 解析 JSON 数组，每条记录包含：
-        //      - campaignId -> campaignId (Long)
-        //      - adGroupId -> adGroupId (Long)
-        //      - keywordId -> keywordId (Long)
-        //      - keyword -> keywordText (String)
-        //      - matchType -> matchType (String: EXACT/PHRASE/BROAD)
-        //      - impressions -> impressions (Long)
-        //      - clicks -> clicks (Long)
-        //      - cost -> cost (BigDecimal)
-        //      - sales14d -> sales (BigDecimal)
-        //      - attributedConversions14d -> orders (Integer)
-        //      - acos14d -> acos (BigDecimal)
-        //      - roas14d -> roas (BigDecimal)
-        //      - cpc -> cpc (BigDecimal)
-        //      - ctr -> ctr (BigDecimal)
-        //   3. 映射到 AmazonAdReportDailyDO：
-        //      AmazonAdReportDailyDO report = new AmazonAdReportDailyDO();
-        //      report.setShopId(shop.getId());
-        //      report.setTenantId(shop.getTenantId());
-        //      report.setCampaignId(...);
-        //      report.setReportDate(LocalDate.parse(reportDateStr, REPORT_DATE_FORMAT));
-        //      ... (set all fields)
-        //      amazonAdReportDailyMapper.insertOrUpdate(report);
-        //   4. 同步广告活动元数据到 AmazonAdCampaignDO：
-        //      AmazonAdCampaignDO campaign = new AmazonAdCampaignDO();
-        //      campaign.setShopId(shop.getId());
-        //      campaign.setTenantId(shop.getTenantId());
-        //      campaign.setCampaignId(...);
-        //      campaign.setCampaignName(...);
-        //      campaign.setCampaignType("SP");
-        //      amazonAdCampaignMapper.insertOrUpdate(campaign);
-        //   5. log.info("[AdReportSync] 报表解析完成，共 {} 条记录", totalSynced);
-
-        log.info("[AdReportSync] shopId={}, marketplaceId={} - 广告报表同步框架已就绪，"
-                + "等待 Ads OAuth2 客户端实现后启用完整流程", shopId, marketplaceId);
+        // Download and parse report
+        int count = downloadAndParseReport(downloadUrl, reportDate, shop);
+        log.info("[AdReportSync] 广告报表同步完成 shopId={}, 记录数={}", shopId, count);
     }
 
     /**
-     * 将 Ads API 报告 JSON 行映射为 AmazonAdReportDailyDO（待 Step 4 实现时调用）。
+     * Fetch the Ads API profile ID matching the given country code.
+     *
+     * @param accessToken OAuth2 access token
+     * @param awsRegion   AWS region (for logging)
+     * @param countryCode country code to match (e.g., "US", "DE")
+     * @return profile ID string, or null if not found
+     */
+    private String fetchAdsProfileId(String accessToken, String awsRegion, String countryCode) {
+        Request request = new Request.Builder()
+                .url(ADS_API_BASE_URL + "/v2/profiles")
+                .addHeader("Amazon-Advertising-API-ClientId", ADS_API_CLIENT_ID)
+                .addHeader("Authorization", "Bearer " + accessToken)
+                .get()
+                .build();
+        Response response = null;
+        try {
+            response = HTTP_CLIENT.newCall(request).execute();
+            if (!response.isSuccessful() || response.body() == null) {
+                log.warn("[AdReportSync] Failed to fetch profiles, HTTP status={}, region={}",
+                        response.code(), awsRegion);
+                return null;
+            }
+            String body = response.body().string();
+            JsonNode profilesArray = OBJECT_MAPPER.readTree(body);
+            if (!profilesArray.isArray()) {
+                log.warn("[AdReportSync] Profiles response is not an array");
+                return null;
+            }
+            for (JsonNode profile : profilesArray) {
+                String profileCountry = profile.has("countryCode") ? profile.get("countryCode").asText() : null;
+                if (countryCode != null && countryCode.equalsIgnoreCase(profileCountry)) {
+                    String profileId = profile.get("profileId").asText();
+                    log.info("[AdReportSync] 获取到广告 profile profileId={}, countryCode={}", profileId, countryCode);
+                    return profileId;
+                }
+            }
+            // If no country match, try first profile as fallback
+            if (profilesArray.size() > 0) {
+                String profileId = profilesArray.get(0).get("profileId").asText();
+                log.info("[AdReportSync] No exact country match, using first profile profileId={}", profileId);
+                return profileId;
+            }
+            return null;
+        } catch (Exception e) {
+            log.error("[AdReportSync] Error fetching Ads profiles", e);
+            return null;
+        } finally {
+            if (response != null) {
+                response.close();
+            }
+        }
+    }
+
+    /**
+     * Request a Sponsored Products keyword report from the Ads API.
+     *
+     * @param accessToken OAuth2 access token
+     * @param profileId   Ads profile ID
+     * @param reportDate  report date
+     * @return reportId string, or null on failure
+     */
+    private String requestKeywordReport(String accessToken, String profileId, LocalDate reportDate) {
+        String dateStr = reportDate.format(REPORT_DATE_FORMAT);
+        String jsonBody = "{\"reportDate\": \"" + dateStr + "\", "
+                + "\"metrics\": \"impressions,clicks,cost,sales14d,attributedConversions14d,acos14d,roas14d,cpc,ctr\"}";
+
+        Request request = new Request.Builder()
+                .url(ADS_API_BASE_URL + "/v2/sp/reportKeywords")
+                .addHeader("Amazon-Advertising-API-ClientId", ADS_API_CLIENT_ID)
+                .addHeader("Authorization", "Bearer " + accessToken)
+                .addHeader("Amazon-Advertising-API-Scope", profileId)
+                .addHeader("Content-Type", "application/json")
+                .post(RequestBody.create(jsonBody, JSON_MEDIA))
+                .build();
+        Response response = null;
+        try {
+            response = HTTP_CLIENT.newCall(request).execute();
+            if (!response.isSuccessful() || response.body() == null) {
+                log.warn("[AdReportSync] Failed to request keyword report, HTTP status={}", response.code());
+                return null;
+            }
+            String body = response.body().string();
+            JsonNode jsonNode = OBJECT_MAPPER.readTree(body);
+            String reportId = jsonNode.has("reportId") ? jsonNode.get("reportId").asText() : null;
+            if (reportId != null) {
+                log.info("[AdReportSync] 报表已提交 reportId={}, reportDate={}", reportId, dateStr);
+            }
+            return reportId;
+        } catch (Exception e) {
+            log.error("[AdReportSync] Error requesting keyword report", e);
+            return null;
+        } finally {
+            if (response != null) {
+                response.close();
+            }
+        }
+    }
+
+    /**
+     * Poll for report completion. Retries every 10 seconds, up to 30 attempts.
+     *
+     * @param accessToken OAuth2 access token
+     * @param profileId   Ads profile ID
+     * @param reportId    report ID to check
+     * @return download URL (location field) on success, or null on failure/timeout
+     */
+    private String pollReportStatus(String accessToken, String profileId, String reportId) {
+        int maxAttempts = 30;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            Request request = new Request.Builder()
+                    .url(ADS_API_BASE_URL + "/v2/reports/" + reportId)
+                    .addHeader("Amazon-Advertising-API-ClientId", ADS_API_CLIENT_ID)
+                    .addHeader("Authorization", "Bearer " + accessToken)
+                    .addHeader("Amazon-Advertising-API-Scope", profileId)
+                    .get()
+                    .build();
+            Response response = null;
+            try {
+                response = HTTP_CLIENT.newCall(request).execute();
+                if (!response.isSuccessful() || response.body() == null) {
+                    log.warn("[AdReportSync] Poll report failed, HTTP status={}, attempt={}/{}",
+                            response.code(), attempt, maxAttempts);
+                    return null;
+                }
+                String body = response.body().string();
+                JsonNode jsonNode = OBJECT_MAPPER.readTree(body);
+                String status = jsonNode.has("status") ? jsonNode.get("status").asText() : "UNKNOWN";
+
+                if ("SUCCESS".equals(status)) {
+                    String location = jsonNode.has("location") ? jsonNode.get("location").asText() : null;
+                    log.info("[AdReportSync] 报表已生成 reportId={}, location={}", reportId, location);
+                    return location;
+                } else if ("FAILURE".equals(status)) {
+                    String details = jsonNode.has("statusDetails") ? jsonNode.get("statusDetails").asText() : "";
+                    log.warn("[AdReportSync] 报表生成失败 reportId={}, details={}", reportId, details);
+                    return null;
+                } else {
+                    log.info("[AdReportSync] 报表生成中 reportId={}, status={}, attempt={}/{}",
+                            reportId, status, attempt, maxAttempts);
+                }
+            } catch (Exception e) {
+                log.error("[AdReportSync] Error polling report status, attempt={}/{}", attempt, maxAttempts, e);
+                return null;
+            } finally {
+                if (response != null) {
+                    response.close();
+                }
+            }
+
+            // Sleep 10 seconds before next attempt
+            if (attempt < maxAttempts) {
+                try {
+                    Thread.sleep(10000L);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    log.warn("[AdReportSync] Poll interrupted for reportId={}", reportId);
+                    return null;
+                }
+            }
+        }
+        log.warn("[AdReportSync] Poll exhausted after {} attempts for reportId={}", maxAttempts, reportId);
+        return null;
+    }
+
+    /**
+     * Download the report from the given URL, parse gzip JSON, and persist records.
+     *
+     * @param downloadUrl pre-signed S3 download URL
+     * @param reportDate  report date
+     * @param shop        shop information
+     * @return number of records processed
+     */
+    private int downloadAndParseReport(String downloadUrl, LocalDate reportDate, AmazonShopDO shop) {
+        Request request = new Request.Builder()
+                .url(downloadUrl)
+                .get()
+                .build();
+        Response response = null;
+        int count = 0;
+        try {
+            response = HTTP_CLIENT.newCall(request).execute();
+            if (!response.isSuccessful() || response.body() == null) {
+                log.warn("[AdReportSync] Failed to download report, HTTP status={}", response.code());
+                return 0;
+            }
+
+            // Parse gzip-compressed JSON array
+            GZIPInputStream gzipStream = new GZIPInputStream(response.body().byteStream());
+            BufferedReader reader = new BufferedReader(new InputStreamReader(gzipStream, StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line);
+            }
+            reader.close();
+
+            JsonNode reportArray = OBJECT_MAPPER.readTree(sb.toString());
+            if (reportArray == null || !reportArray.isArray()) {
+                log.warn("[AdReportSync] Report response is not a JSON array");
+                return 0;
+            }
+
+            for (JsonNode row : reportArray) {
+                try {
+                    Long campaignId = row.has("campaignId") ? row.get("campaignId").asLong() : null;
+                    Long adGroupId = row.has("adGroupId") ? row.get("adGroupId").asLong() : null;
+                    Long keywordId = row.has("keywordId") ? row.get("keywordId").asLong() : null;
+                    String keywordText = row.has("keyword") ? row.get("keyword").asText() : null;
+                    String matchType = row.has("matchType") ? row.get("matchType").asText() : null;
+                    Long impressions = row.has("impressions") ? row.get("impressions").asLong() : 0L;
+                    Long clicks = row.has("clicks") ? row.get("clicks").asLong() : 0L;
+                    BigDecimal cost = row.has("cost") ? new BigDecimal(row.get("cost").asText()) : BigDecimal.ZERO;
+                    BigDecimal sales = row.has("sales14d") ? new BigDecimal(row.get("sales14d").asText()) : BigDecimal.ZERO;
+                    Integer orders = row.has("attributedConversions14d") ? row.get("attributedConversions14d").asInt() : 0;
+
+                    AmazonAdReportDailyDO reportDO = buildReportDailyDO(
+                            campaignId, adGroupId, keywordId,
+                            keywordText, matchType,
+                            reportDate,
+                            impressions, clicks, cost, sales, orders,
+                            shop
+                    );
+
+                    amazonAdReportDailyMapper.insertOrUpdate(reportDO);
+
+                    // Sync campaign metadata to AmazonAdCampaignDO
+                    if (campaignId != null) {
+                        String campaignName = row.has("campaignName") ? row.get("campaignName").asText() : null;
+                        AmazonAdCampaignDO campaign = new AmazonAdCampaignDO();
+                        campaign.setShopId(shop.getId());
+                        campaign.setTenantId(shop.getTenantId());
+                        campaign.setCampaignId(campaignId);
+                        campaign.setCampaignName(campaignName);
+                        campaign.setCampaignType("SP");
+                        amazonAdCampaignMapper.insertOrUpdate(campaign);
+                    }
+
+                    count++;
+                } catch (Exception rowEx) {
+                    log.warn("[AdReportSync] 跳过解析异常的行: {}", rowEx.getMessage());
+                }
+            }
+            log.info("[AdReportSync] 报表解析完成，共 {} 条记录", count);
+        } catch (Exception e) {
+            log.error("[AdReportSync] Error downloading/parsing report", e);
+        } finally {
+            if (response != null) {
+                response.close();
+            }
+        }
+        return count;
+    }
+
+    /**
+     * 将 Ads API 报告 JSON 行映射为 AmazonAdReportDailyDO。
      *
      * @param campaignId    广告活动 ID
      * @param adGroupId     广告组 ID
@@ -188,7 +399,6 @@ public class AdReportSyncServiceImpl implements AdReportSyncService {
      * @param shop          店铺信息
      * @return 映射后的广告日报 DO
      */
-    @SuppressWarnings("unused")
     private AmazonAdReportDailyDO buildReportDailyDO(Long campaignId, Long adGroupId, Long keywordId,
                                                       String keywordText, String matchType,
                                                       LocalDate reportDate,

@@ -1,10 +1,12 @@
 package cn.iocoder.yudao.module.amazon.ai.agent.functions;
 
-import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.amazon.ad.dal.dataobject.AmazonAdCampaignDO;
 import cn.iocoder.yudao.module.amazon.ad.dal.dataobject.AmazonAdReportDailyDO;
 import cn.iocoder.yudao.module.amazon.ad.dal.mysql.AmazonAdCampaignMapper;
 import cn.iocoder.yudao.module.amazon.ad.dal.mysql.AmazonAdReportDailyMapper;
+import cn.iocoder.yudao.module.amazon.order.dal.dataobject.AmazonOrderDO;
+import cn.iocoder.yudao.module.amazon.order.dal.mysql.AmazonOrderMapper;
+import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import javax.annotation.Resource;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,7 +17,9 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -39,6 +43,9 @@ public class GetAdPerformanceFunction implements Function<GetAdPerformanceFuncti
 
     @Resource
     private AmazonAdCampaignMapper amazonAdCampaignMapper;
+
+    @Resource
+    private AmazonOrderMapper amazonOrderMapper;
 
     @Data
     @Builder
@@ -221,10 +228,9 @@ public class GetAdPerformanceFunction implements Function<GetAdPerformanceFuncti
             double overallAcos = totalSalesDouble > 0
                     ? Math.round((totalSpendDouble / totalSalesDouble) * 10000.0) / 100.0
                     : 0.0;
-            // TACoS approximation: assume total ad spend is a fraction of total org revenue
-            // Since we don't have organic revenue here, we estimate TACoS ~= ACoS * (ad revenue / total revenue)
-            // For simplicity, set TACoS to null or a rough estimate
-            double overallTacos = overallAcos * 0.4; // rough placeholder: assume 40% of revenue from ads
+            // TACoS = Total Ad Spend / Total Revenue (all orders, not just ad-attributed)
+            // Query actual total revenue from orders table for the same date range
+            double overallTacos = calculateTacos(startDate, endDate, totalSpendDouble);
 
             // 6. Build per-campaign summaries
             List<CampaignSummary> campaignSummaries = new ArrayList<>();
@@ -365,6 +371,54 @@ public class GetAdPerformanceFunction implements Function<GetAdPerformanceFuncti
         }
 
         return sb.toString();
+    }
+
+    /**
+     * 计算 TACoS (Total Advertising Cost of Sales)。
+     * <p>TACoS = 广告总花费 / 全部订单总营收 × 100</p>
+     * <p>通过查询 amazon_order 表获取同一时间范围内的全部订单营收（含自然订单），
+     * 而非仅广告归因订单，从而反映广告在整体营收中的真实占比。</p>
+     *
+     * @param startDate        开始日期
+     * @param endDate          结束日期
+     * @param totalAdSpend     广告总花费
+     * @return TACoS 百分比值（如 12.5 表示 12.5%）
+     */
+    private double calculateTacos(LocalDate startDate, LocalDate endDate, double totalAdSpend) {
+        if (totalAdSpend <= 0) {
+            return 0.0;
+        }
+
+        try {
+            LocalDateTime startTime = startDate.atStartOfDay();
+            LocalDateTime endTime = endDate.plusDays(1).atStartOfDay();
+
+            List<AmazonOrderDO> allOrders = amazonOrderMapper.selectList(
+                    new LambdaQueryWrapperX<AmazonOrderDO>()
+                            .ge(AmazonOrderDO::getPurchaseDate, startTime)
+                            .lt(AmazonOrderDO::getPurchaseDate, endTime)
+                            .notIn(AmazonOrderDO::getOrderStatus,
+                                    Arrays.asList("Canceled", "Unfulfillable")));
+
+            BigDecimal totalRevenue = BigDecimal.ZERO;
+            for (AmazonOrderDO order : allOrders) {
+                if (order.getOrderTotal() != null) {
+                    totalRevenue = totalRevenue.add(order.getOrderTotal());
+                }
+            }
+
+            double totalRevenueDouble = totalRevenue.doubleValue();
+            if (totalRevenueDouble > 0) {
+                return Math.round((totalAdSpend / totalRevenueDouble) * 10000.0) / 100.0;
+            }
+
+            log.debug("[TACoS] 同期无订单营收数据, 返回 0");
+            return 0.0;
+
+        } catch (Exception e) {
+            log.warn("[TACoS] 查询总营收失败, 降级返回 0: {}", e.getMessage());
+            return 0.0;
+        }
     }
 
     /**

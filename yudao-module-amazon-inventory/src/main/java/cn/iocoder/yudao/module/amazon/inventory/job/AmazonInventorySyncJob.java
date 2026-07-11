@@ -36,9 +36,8 @@ public class AmazonInventorySyncJob extends AbstractAmazonSyncJob {
         log.info("[doSync] 开始库存同步 | shopId={}, marketplace={}",
                 shop.getId(), shop.getMarketplaceId());
 
-        // TODO: 接入 SP-API FBA Inventory API
-        // GET /fba/inventory/v1/summaries
-        // 解析响应并持久化到 amazon_inventory 表
+        inventoryService.syncInventory(shop.getId());
+
         log.info("[doSync] 库存同步完成 | shopId={}", shop.getId());
     }
 

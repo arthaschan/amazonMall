@@ -1,6 +1,6 @@
 package cn.iocoder.yudao.module.amazon.ad.job;
 
-import cn.iocoder.yudao.module.amazon.ad.service.AdCampaignService;
+import cn.iocoder.yudao.module.amazon.ad.service.AdReportSyncService;
 import cn.iocoder.yudao.module.amazon.common.sync.AbstractAmazonSyncJob;
 import cn.iocoder.yudao.module.amazon.shop.dal.dataobject.AmazonShopDO;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +23,7 @@ import javax.annotation.Resource;
 public class AmazonAdReportSyncJob extends AbstractAmazonSyncJob {
 
     @Resource
-    private AdCampaignService adCampaignService;
+    private AdReportSyncService adReportSyncService;
 
     @Override
     protected String getJobName() {
@@ -35,11 +35,8 @@ public class AmazonAdReportSyncJob extends AbstractAmazonSyncJob {
         log.info("[doSync] 开始广告报告同步 | shopId={}, marketplace={}",
                 shop.getId(), shop.getMarketplaceId());
 
-        // TODO: 接入 Amazon Advertising API
-        // POST /v2/sp/report (Sponsored Products Report)
-        // POST /v2/hsa/report (Sponsored Brands Report)
-        // POST /v2/sd/report (Sponsored Display Report)
-        // 报告生成是异步的：提交请求 -> 轮询状态 -> 下载报告
+        adReportSyncService.syncAdReports(shop.getId(), shop.getMarketplaceId());
+
         log.info("[doSync] 广告报告同步完成 | shopId={}", shop.getId());
     }
 
